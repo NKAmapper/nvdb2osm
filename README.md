@@ -22,7 +22,7 @@ Converts NVDB highway data to OSM
    - Bounding box only supported for WGS84 coordinates, not UTM from vegkart.no (you will need to remove it or convert to WGS84)
    - Please make sure that `inkluder=lokasjon,egenskaper,metadata,geometri` is included in the string 
    - Example 1: `nvdb2osm "https://www.vegvesen.no/nvdb/api/v2/vegobjekter/532?segmentering=true&inkluder=lokasjon,egenskaper,metadata,geometri&egenskap=4567=7041" >outfile.osm` for all construction road objects in Norway (NB: less detailed than a road network)
-   - Example 2: Swap `7041` with `12160 in example 1 to get cycleways under construction
+   - Example 2: Swap `7041` with `12160` in example 1 to get cycleways under construction
    - The api string is found by following this procudure:
      - Searching for a feature in [vegkart.no](http://vegkart.no)
      - Click *"Legg til søk"*
