@@ -19,7 +19,8 @@ Converts NVDB highway data to OSM
 4. **nvdb2osm "http string from vegnett.no" > outfile.osm**
    - Produces osm file defined by given NVDB http api call from [vegkart.no](http://vegkart.no)
    - `&srid=wgs84` automatically added to the string
-   - Bounding box only supported for wgs84 coordinates, not UTM from vegkart.no (you need to remove it)
+   - Bounding box only supported for WGS84 coordinates, not UTM from vegkart.no (you will need to remove it or convert to WGS84)
+   - Please make sure that `inkluder=lokasjon,egenskaper,metadata,geometri` is included in the string 
    - Example: `nvdb2osm "https://www.vegvesen.no/nvdb/api/v2/vegobjekter/532?segmentering=true&inkluder=lokasjon,egenskaper,metadata,geometri&egenskap=4567=7041" >outfile.osm` for all construction road objects in Norway (NB: less detailed than a road network)
    - The api string is found by following this procudure:
      - Searching for a feature in [vegkart.no](http://vegkart.no)
@@ -27,6 +28,7 @@ Converts NVDB highway data to OSM
      - Click the first link named *"xx treff xx meter"*
      - Copy the link behind *"api"*
      - Remove the bounding box in the copied link if any (or convert it to WGS84 coordinates)
+   - You may want to test the http string in your browser
    
 ### References
 
