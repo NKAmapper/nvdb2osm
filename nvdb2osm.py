@@ -16,7 +16,7 @@ import sys
 import cgi
 
 
-version = "0.1.0"
+version = "0.1.1"
 
 road_category = {
 	'E': {'name': 'Europaveg', 'tag': 'trunk'},
@@ -632,28 +632,38 @@ def process_vegnett (data):
 
 if __name__ == '__main__':
 
-	if len(sys.argv) > 1:
+	filename = ""
+	if len(sys.argv) > 2:
 		if (sys.argv[1] == "-vn") and (len(sys.argv) == 4) and (sys.argv[2] == "-k") and sys.argv[3].isdigit():
-			filename = "https://www.vegvesen.no/nvdb/api/v2/vegnett/lenker?srid=wgs84&kommune=" + sys.argv[2]
+			filename = "https://www.vegvesen.no/nvdb/api/v2/vegnett/lenker?srid=wgs84&kommune=" + sys.argv[3]
 		elif (sys.argv[1] == "-vr") and (len(sys.argv) == 3):
 			filename = "https://www.vegvesen.no/nvdb/api/v2/vegnett/lenker?srid=wgs84&vegreferanse=" + sys.argv[2]
 		elif (sys.argv[1] == "-vo") and (len(sys.argv) == 3) and sys.argv[2].isdigit():
 			filename = "https://www.vegvesen.no/nvdb/api/v2/vegobjekter/" + sys.argv[2] + "?inkluder=metadata,egenskaper,geometri,lokasjon&srid=wgs84"
 		elif (sys.argv[1] == "-vo") and (len(sys.argv) == 5) and sys.argv[2].isdigit() and (sys.argv[3] == "-k") and sys.argv[4].isdigit():
 			filename = "https://www.vegvesen.no/nvdb/api/v2/vegobjekter/" + sys.argv[2] + "?inkluder=metadata,egenskaper,geometri,lokasjon&srid=wgs84&kommune=" + sys.argv[4]
-		else:
-			filename = sys.argv[1] + "&srid=wgs84"
+		elif (sys.argv[1] == "-vu") and ("vegvesen.no/nvdb/api/v2/" in sys.argv[2]):
+			filename = sys.argv[2] + "&srid=wgs84"
+
+	if filename:
+		sys.stderr.write("Generating osm file for: %s ...\n" % filename)
 	else:
-		sys.std_out.write("Please provide input in one of the following ways:\n")
-		sys.std_out.write('  nvdb2osm -vn -k <nnnn> > outfile.osm  -->  Road network for municipality number (4 digits)\n')
-		sys.std_out.write('  nvdb2osm -vr <reference> > outfile.osm  -->  Road network for road reference code (e.g. "0400Ea6")\n')		
-		sys.std_out.write('  nvdb2osm -vo <nnn> > outfile.osm  -->  Road object number (2-3 digits) for entire country\n')
-		sys.std_out.write('  nvdb2osm -vo <nnn> -k <mmmm> > out.osm  -->  Road object number (2-3 digits) for municipality number (4 digits)\n')
-		sys.std_out.write('  nvdb2osm "<http api string>" > outfile.osm  -->  Any api generated from vegkart.no (UTM bounding box not supported, wgs84 appended)\n')
+		sys.stderr.write("Please provide parameters in one of the following ways:\n")
+		sys.stderr.write('  nvdb2osm -vn -k <nnnn> > outfile.osm  -->  Road network for municipality number (4 digits)\n')
+		sys.stderr.write('  nvdb2osm -vr <reference> > outfile.osm  -->  Road network for road reference code (e.g. "0400Ea6")\n')		
+		sys.stderr.write('  nvdb2osm -vo <nnn> > outfile.osm  -->  Road object number (2-3 digits) for entire country\n')
+		sys.stderr.write('  nvdb2osm -vo <nnn> -k <mmmm> > out.osm  -->  Road object number (2-3 digits) for municipality number (4 digits)\n')
+		sys.stderr.write('  nvdb2osm "<api url string>" > outfile.osm  -->  Any api generated from vegkart.no (UTM bounding box not supported, wgs84 appended)\n')
 		sys.exit()
+
+	request_headers = {
+		"X-Client": "nvdb2osm",
+		"X-Kontaktperson": "nkamapper@gmail.com"
+	}
 
 	osm_id = -1000
 	returnert = 1
+	total_returnert = 0
 	debug = False
 	debug_trase = False
 
@@ -664,7 +674,8 @@ if __name__ == '__main__':
 
 	while returnert > 0:
 
-		file = urllib2.urlopen(filename)
+		request = urllib2.Request(filename, headers=request_headers)
+		file = urllib2.urlopen(request)
 		data = json.load(file)
 		file.close()
 
@@ -675,5 +686,8 @@ if __name__ == '__main__':
 
 		returnert = data['metadata']['returnert']
 		filename = data['metadata']['neste']['href']
+		total_returnert += returnert
 
 	print ("</osm>")
+
+	sys.stderr.write("Done processing %i road objects/links\n" % total_returnert)
