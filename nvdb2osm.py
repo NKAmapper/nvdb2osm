@@ -7,7 +7,7 @@
 # 1) nvdb2osm -vo <vegobjektkode> [-k <kommune>] > outfile.osm  --> Produces osm file with all road objects of a given type (optionally within a given municipality)
 # 2) nvdb2osm -vn -k <kommune> > outfile.osm  --> Produces osm file with road network for a given municipality
 # 3) nvdb2osm -vr <vegreferanse> > outfile.osm  --> Produces osm file with road network for given road reference code
-# 4) nvdb2osm "<http string from vegnett.no>"" > outfile.osm  --> Produces osm file defined by given NVDB http api call from vegkart.no.
+# 4) nvdb2osm -vu "<http string from vegnett.no>"" > outfile.osm  --> Produces osm file defined by given NVDB http api call from vegkart.no.
 #       "&srid=wgs84" automatically added. Bounding box only supported for wgs84 coordinates, not UTM from vegkart.no. 
 
 import json
@@ -653,7 +653,7 @@ if __name__ == '__main__':
 		sys.stderr.write('  nvdb2osm -vr <reference> > outfile.osm  -->  Road network for road reference code (e.g. "0400Ea6")\n')		
 		sys.stderr.write('  nvdb2osm -vo <nnn> > outfile.osm  -->  Road object number (2-3 digits) for entire country\n')
 		sys.stderr.write('  nvdb2osm -vo <nnn> -k <mmmm> > out.osm  -->  Road object number (2-3 digits) for municipality number (4 digits)\n')
-		sys.stderr.write('  nvdb2osm "<api url string>" > outfile.osm  -->  Any api generated from vegkart.no (UTM bounding box not supported, wgs84 appended)\n')
+		sys.stderr.write('  nvdb2osm -vu "<api url string>" > outfile.osm  -->  Any api generated from vegkart.no (UTM bounding box not supported, wgs84 appended)\n')
 		sys.exit()
 
 	request_headers = {
