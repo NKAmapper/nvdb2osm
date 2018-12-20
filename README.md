@@ -16,12 +16,12 @@ Converts NVDB highway data to OSM
    - Example: `nvdb2osm -vr 0400Ea6 >outfile.osm` for E6 under construction (a) at Hedmark county (0400)
    - The reference code is found by clicking on a road in [vegkart.no](http://vegkart.no)
   
-4. **nvdb2osm "api url" > outfile.osm**
+4. **nvdb2osm -vu "api url" > outfile.osm**
    - Produces osm file defined by given NVDB api url from [vegkart.no](http://vegkart.no) or any other permitted api url as described in [NVDB api documentation](https://www.vegvesen.no/nvdb/apidokumentasjon/)
    - `&srid=wgs84` automatically added to the apri url string
    - Bounding box only supported for WGS84 coordinates, not UTM from vegkart.no (you will need to remove it or convert to WGS84)
    - Please make sure that `inkluder=lokasjon,egenskaper,metadata,geometri` is included in the api url string 
-   - Example 1: `nvdb2osm "https://www.vegvesen.no/nvdb/api/v2/vegobjekter/532?segmentering=true&inkluder=lokasjon,egenskaper,metadata,geometri&egenskap=4567=7041" >outfile.osm` for all construction road objects in Norway (NB: less detailed than a road network)
+   - Example 1: `nvdb2osm -vu "https://www.vegvesen.no/nvdb/api/v2/vegobjekter/532?segmentering=true&inkluder=lokasjon,egenskaper,metadata,geometri&egenskap=4567=7041" >outfile.osm` for all construction road objects in Norway (NB: less detailed than a road network)
    - Example 2: Swap `7041` with `12160` in example 1 to get cycleways under construction
    - The api url is found by following this procudure:
      - Searching for a feature in [vegkart.no](http://vegkart.no)
