@@ -16,7 +16,7 @@ import sys
 import cgi
 
 
-version = "0.1.1"
+version = "0.2.0"
 
 road_category = {
 	'E': {'name': 'Europaveg', 'tag': 'trunk'},
@@ -450,11 +450,19 @@ def process_vegobjekt (data):
 					if ref['hp'] / 100 == 8:  # Trafikklommer/rasteplasser
 						tag_property (tag_key, "unclassified")
 					else:
-						if (ref['fylke'] == 50) and (ref['kategori'] == "F") and (ref['nummer'] < 1000):
-							tag_property (tag_key, "primary")
+
+						if (ref['kategori'] in ["E", "R", "F"]) and (ref['hp'] >= 70) and (ref['hp'] <= 199):  # Ramper
+							link = "_link"
 						else:
-							tag_property (tag_key, road_category[ref['kategori']]['tag'])
+							link = ""
+
+						if (ref['fylke'] == 50) and (ref['kategori'] == "F") and (ref['nummer'] < 1000):  # Trøndelag
+							tag_property (tag_key, "primary" + link)
+						else:
+							tag_property (tag_key, road_category[ref['kategori']]['tag'] + link)
+
 						tag_property ("ref", get_ref(ref['kategori'], ref['nummer']))
+
 					if ref['status'] == "X":  # Rømningstunnel
 						tag_property ("tunnel", "yes")
 						tag_property ("layer", "-1")
@@ -522,10 +530,17 @@ def process_vegnett (data):
 						if ref['hp'] / 100 == 8:  # Trafikklommer/rasteplasser
 							tag_property (tag_key, "unclassified")
 						else:
-							if (ref['fylke'] == 50) and (ref['kategori'] == "F") and (ref['nummer'] < 1000):
-								tag_property (tag_key, "primary")
+
+							if (ref['kategori'] in ["E", "R", "F"]) and (ref['hp'] >= 70) and (ref['hp'] <= 199):  # Ramper
+								link = "_link"
 							else:
-								tag_property (tag_key, road_category[ref['kategori']]['tag'])
+								link = ""
+
+							if (ref['fylke'] == 50) and (ref['kategori'] == "F") and (ref['nummer'] < 1000):  # Trøndelag
+								tag_property (tag_key, "primary" + link)
+							else:
+								tag_property (tag_key, road_category[ref['kategori']]['tag'] + link)
+
 							tag_property ("ref", get_ref(ref['kategori'], ref['nummer']))
 
 						if "felt" in lenke:		
@@ -652,7 +667,7 @@ if __name__ == '__main__':
 		sys.stderr.write('  nvdb2osm -vn -k <nnnn> > outfile.osm  -->  Road network for municipality number (4 digits)\n')
 		sys.stderr.write('  nvdb2osm -vr <reference> > outfile.osm  -->  Road network for road reference code (e.g. "0400Ea6")\n')		
 		sys.stderr.write('  nvdb2osm -vo <nnn> > outfile.osm  -->  Road object number (2-3 digits) for entire country\n')
-		sys.stderr.write('  nvdb2osm -vo <nnn> -k <mmmm> > out.osm  -->  Road object number (2-3 digits) for municipality number (4 digits)\n')
+		sys.stderr.write('  nvdb2osm -vo <nnn> -k <mmmm> > outfile.osm  -->  Road object number (2-3 digits) for municipality number (4 digits)\n')
 		sys.stderr.write('  nvdb2osm -vu "<api url string>" > outfile.osm  -->  Any api generated from vegkart.no (UTM bounding box not supported, wgs84 appended)\n')
 		sys.exit()
 
