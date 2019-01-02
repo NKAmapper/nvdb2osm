@@ -35,7 +35,6 @@ Converts NVDB highway data to OSM
 
 * Roads will get tagging for: highway, ref, oneway, roundabout, lanes, turn:lanes, psv, tunnel, bridge.
 * The road network will currently not get tagging for information from other road objects, such as speed limit, name, barrier etc.
-* Highway link tags such as *trunk_link* are currently tagged with the main tag only, i.e. *trunk*.
 * For road objects, the osm file will contain all data fields from NVDB in its original format. You will need to convert to proper osm tagging. Referenced roads will get osm tagging automatically.
 * Please observe that *road object* will only produce the center line of the road, while *road network* will get all separate lanes, so you may want to use road network whenever possible.
 * The generated ways currently are sometimes self-intersecting. Run *simplify way* with a factor of 0.2 in JOSM to fix it. 
