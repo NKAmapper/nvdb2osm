@@ -16,7 +16,7 @@ import sys
 import cgi
 
 
-version = "0.2.0"
+version = "0.3.0"
 
 road_category = {
 	'E': {'name': 'Europaveg', 'tag': 'trunk'},
@@ -322,6 +322,8 @@ def process_geometry (wkt, reverse):
 	global end_tag
 	global debug
 
+	# Split "multi" wkts into separate individual wkts
+
 	start = wkt.find("(")
 	geometry_type = wkt[:start - 1]
 	wkt = wkt[start + 1:-1]
@@ -398,94 +400,113 @@ def process_vegobjekt (data):
 
 		if "geometri" in road_object:
 
-			process_geometry (road_object['geometri']['wkt'], reverse=False)
+			# Split "multi" wkts into separate individual wkts in order to get property tagging for all parts
 
-			if "egenskaper" in road_object:
-				for attribute in road_object['egenskaper']:
-					if not(attribute['datatype_tekst'] in ["GeomPunkt", "GeomFlate", "GeomLinje eller Kurve"]):
+			wkt = road_object['geometri']['wkt']
+			start = wkt.find("(")
+			geometry_type = wkt[:start - 1]
+			wkt = wkt[start + 1:-1]
+			wkt_split = wkt.split("), (")
 
-						key = attribute['navn'].replace(" ","_").replace(".","").replace(",","")
-						if attribute['datatype_tekst'] == "Tall":
-							value = str(attribute['verdi'])
-						elif attribute['datatype_tekst'] == "FlerverdiAttributt, Tekst":
-							value = "#" + str(attribute['enum_id']) + " " + attribute['verdi']
-						elif attribute['datatype_tekst'] == "Flerverdiattributt, Tall":
-							value = "#" + str(attribute['enum_id']) + " " + str(attribute['verdi'])
-						else:
-							value = attribute['verdi']
-						tag_property (key.upper(), value)
+			for wkt_part in wkt_split:
 
-					elif debug:
-						tag_property ("GEOMETRI", attribute['datatype_tekst'])
+				wkt_part = geometry_type + " (" + wkt_part.lstrip("(").rstrip(")") + ")"
 
-					if (attribute['navn'] == "Envegsregulering") and (attribute['verdi'][0:5] == "Enveg"):
-						tag_property ("oneway", "yes")
+				process_geometry (wkt_part, reverse=False)
 
-			if ("lokasjon" in road_object) and ("vegreferanser" in road_object['lokasjon']):
+				if "egenskaper" in road_object:
+					for attribute in road_object['egenskaper']:
+						if not(attribute['datatype_tekst'] in ["GeomPunkt", "GeomFlate", "GeomLinje eller Kurve"]):
 
-				ref = road_object['lokasjon']['vegreferanser'][0]
+							key = attribute['navn'].replace(" ","_").replace(".","").replace(",","")
+							if attribute['datatype_tekst'] == "Tall":
+								value = str(attribute['verdi'])
+							elif attribute['datatype_tekst'] == "FlerverdiAttributt, Tekst":
+								value = "#" + str(attribute['enum_id']) + " " + attribute['verdi']
+							elif attribute['datatype_tekst'] == "Flerverdiattributt, Tall":
+								value = "#" + str(attribute['enum_id']) + " " + str(attribute['verdi'])
 
-				# Set key according to status (proposed, construction, existing)
+							else:
+								value = attribute['verdi']
 
-				if ref['status'] in ["A", "H"]:
-					tag_property ("highway", "construction")
-					tag_key = "construction"
-				elif ref['status'] in ["P", "Q"]:
-					tag_key = "proposed:highway"
-				elif ref['status'] == "E":
-					tag_key = "proposed:route"
-				elif ref['status'] == "S":
-					tag_key = "route"
-				else:
-					tag_key = "highway"
+							tag_property (key.upper(), value)
 
-				if ref['status'] in ["G", "U", "H", "Q"]:  # Cycleway
-					tag_property (tag_key, "cycleway")
+							if attribute['navn'] == "Fartsgrense":  # Road object 105, speed limit
+								tag_property ("maxspeed", str(attribute['verdi']))
+							elif attribute['navn'] == "Gatenavn":  # Road object 538, street name
+								tag_property ("name", attribute['verdi'])
 
-				elif ref['status'] in ["S", "E"]:  # Ferry
-					tag_property (tag_key, "ferry")
-					tag_property ("ref", get_ref(ref['kategori'], ref['nummer']))
+						elif debug:
+							tag_property ("GEOMETRI", attribute['datatype_tekst'])
 
-				else:   # Regular highways
-					if ref['hp'] / 100 == 8:  # Trafikklommer/rasteplasser
-						tag_property (tag_key, "unclassified")
+						if (attribute['navn'] == "Envegsregulering") and (attribute['verdi'][0:5] == "Enveg"):
+							tag_property ("oneway", "yes")
+
+				if ("lokasjon" in road_object) and ("vegreferanser" in road_object['lokasjon']):
+
+					ref = road_object['lokasjon']['vegreferanser'][0]
+
+					# Set key according to status (proposed, construction, existing)
+
+					if ref['status'] in ["A", "H"]:
+						tag_property ("highway", "construction")
+						tag_key = "construction"
+					elif ref['status'] in ["P", "Q"]:
+						tag_key = "proposed:highway"
+					elif ref['status'] == "E":
+						tag_key = "proposed:route"
+					elif ref['status'] == "S":
+						tag_key = "route"
 					else:
+						tag_key = "highway"
 
-						if (ref['kategori'] in ["E", "R", "F"]) and (ref['hp'] >= 70) and (ref['hp'] <= 199):  # Ramper
-							link = "_link"
-						else:
-							link = ""
+					if ref['status'] in ["G", "U", "H", "Q"]:  # Cycleway
+						tag_property (tag_key, "cycleway")
 
-						if (ref['fylke'] == 50) and (ref['kategori'] == "F") and (ref['nummer'] < 1000):  # Trøndelag
-							tag_property (tag_key, "primary" + link)
-						else:
-							tag_property (tag_key, road_category[ref['kategori']]['tag'] + link)
-
+					elif ref['status'] in ["S", "E"]:  # Ferry
+						tag_property (tag_key, "ferry")
 						tag_property ("ref", get_ref(ref['kategori'], ref['nummer']))
 
-					if ref['status'] == "X":  # Rømningstunnel
-						tag_property ("tunnel", "yes")
-						tag_property ("layer", "-1")
+					else:   # Regular highways
+						if ref['hp'] / 100 == 8:  # Trafikklommer/rasteplasser
+							tag_property (tag_key, "unclassified")
+						else:
 
-			if debug:
+							if (ref['kategori'] in ["E", "R", "F"]) and (ref['hp'] >= 70) and (ref['hp'] <= 199):  # Ramper
+								link = "_link"
+							else:
+								link = ""
 
-				tag_property ("ID", str(road_object['id']))
+							if (ref['fylke'] == 50) and (ref['kategori'] == "F") and (ref['nummer'] < 1000):  # Trøndelag
+								tag_property (tag_key, "primary" + link)
+							else:
+								tag_property (tag_key, road_category[ref['kategori']]['tag'] + link)
 
-				if "egengeometri" in road_object['geometri']:
-					tag_property ("EGENGEOMETRI", "Ja")
+							tag_property ("ref", get_ref(ref['kategori'], ref['nummer']))
 
-				if "metadata" in road_object:
-					tag_property ("VEGOBJEKTTYPE", road_object['metadata']['type']['navn'])
-					tag_property ("SIST_MODIFISERT", road_object['metadata']['sist_modifisert'][:10])
+						if ref['status'] == "X":  # Rømningstunnel
+							tag_property ("tunnel", "yes")
+							tag_property ("layer", "-1")
 
-				if "lokasjon" in road_object:
-					i = 0
-					for stedfesting in road_object['lokasjon']['stedfestinger']:
-						i += 1
-						tag_property ("VEGLENKE_" + str(i), str(stedfesting['veglenkeid']))
-						tag_property ("POSISJON_" + str(i), stedfesting['retning'] + " " + stedfesting['kortform'])
+				if debug:
 
-			print ("  </%s>" % end_tag)  # /node or /way
+					tag_property ("ID", str(road_object['id']))
+
+					if "egengeometri" in road_object['geometri']:
+						tag_property ("EGENGEOMETRI", "Ja")
+
+					if "metadata" in road_object:
+						tag_property ("VEGOBJEKTTYPE", road_object['metadata']['type']['navn'])
+						tag_property ("SIST_MODIFISERT", road_object['metadata']['sist_modifisert'][:10])
+
+					if "lokasjon" in road_object:
+						i = 0
+						for stedfesting in road_object['lokasjon']['stedfestinger']:
+							i += 1
+							tag_property ("VEGLENKE_" + str(i), str(stedfesting['veglenkeid']))
+							tag_property ("POSISJON_" + str(i), stedfesting['retning'] + " " + stedfesting['kortform'])
+
+				print ("  </%s>" % end_tag)  # /node or /way
 
 
 # Vegnett
@@ -518,9 +539,9 @@ def process_vegnett (data):
 						tag_key = "construction"
 					elif ref['status'] in ["P", "Q"]:
 						tag_key = "proposed:highway"
-					elif ref['status'] == "E":
+					elif ref['status'] == "E":  # Proposed ferry
 						tag_key = "proposed:route"
-					elif ref['status'] == "S":
+					elif (ref['status'] == "S") or (lenke['temakode'] == 7201):  # Ferry (including status B)
 						tag_key = "route"
 					else:
 						tag_key = "highway"
