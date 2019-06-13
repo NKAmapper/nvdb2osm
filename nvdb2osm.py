@@ -16,7 +16,11 @@ import sys
 import cgi
 
 
-version = "0.3.0"
+version = "0.3.2"
+
+debug = False
+debug_trase = False
+
 
 road_category = {
 	'E': {'name': 'Europaveg', 'tag': 'trunk'},
@@ -477,7 +481,7 @@ def process_vegobjekt (data):
 							else:
 								link = ""
 
-							if (ref['fylke'] == 50) and (ref['kategori'] == "F") and (ref['nummer'] < 1000):  # Trøndelag
+							if (ref['kategori'] == "F") and (ref['nummer'] < 1000):  # After reform
 								tag_property (tag_key, "primary" + link)
 							else:
 								tag_property (tag_key, road_category[ref['kategori']]['tag'] + link)
@@ -499,7 +503,7 @@ def process_vegobjekt (data):
 						tag_property ("VEGOBJEKTTYPE", road_object['metadata']['type']['navn'])
 						tag_property ("SIST_MODIFISERT", road_object['metadata']['sist_modifisert'][:10])
 
-					if "lokasjon" in road_object:
+					if ("lokasjon" in road_object) and ("stedfestinger" in road_object['lokasjon']):
 						i = 0
 						for stedfesting in road_object['lokasjon']['stedfestinger']:
 							i += 1
@@ -557,7 +561,7 @@ def process_vegnett (data):
 							else:
 								link = ""
 
-							if (ref['fylke'] == 50) and (ref['kategori'] == "F") and (ref['nummer'] < 1000):  # Trøndelag
+							if (ref['kategori'] == "F") and (ref['nummer'] < 1000):  # After reform
 								tag_property (tag_key, "primary" + link)
 							else:
 								tag_property (tag_key, road_category[ref['kategori']]['tag'] + link)
@@ -677,7 +681,7 @@ if __name__ == '__main__':
 		elif (sys.argv[1] == "-vo") and (len(sys.argv) == 3) and sys.argv[2].isdigit():
 			filename = "https://www.vegvesen.no/nvdb/api/v2/vegobjekter/" + sys.argv[2] + "?inkluder=metadata,egenskaper,geometri,lokasjon&srid=wgs84"
 		elif (sys.argv[1] == "-vo") and (len(sys.argv) == 5) and sys.argv[2].isdigit() and (sys.argv[3] == "-k") and sys.argv[4].isdigit():
-			filename = "https://www.vegvesen.no/nvdb/api/v2/vegobjekter/" + sys.argv[2] + "?inkluder=metadata,egenskaper,geometri,lokasjon&srid=wgs84&kommune=" + sys.argv[4]
+			filename = "https://www.vegvesen.no/nvdb/api/v2/vegobjekter/" + sys.argv[2] + "?inkluder=metadata,egenskaper,geometri,lokasjon,vegsegmenter&srid=wgs84&kommune=" + sys.argv[4]
 		elif (sys.argv[1] == "-vu") and ("vegvesen.no/nvdb/api/v2/" in sys.argv[2]):
 			filename = sys.argv[2] + "&srid=wgs84"
 
@@ -700,8 +704,6 @@ if __name__ == '__main__':
 	osm_id = -1000
 	returnert = 1
 	total_returnert = 0
-	debug = False
-	debug_trase = False
 
 	print ("<?xml version='1.0' encoding='UTF-8'?>")
 	print ("<osm version='0.6' generator='nvdb2osm v%s' upload='false'>" % version)
@@ -727,3 +729,4 @@ if __name__ == '__main__':
 	print ("</osm>")
 
 	sys.stderr.write("Done processing %i road objects/links\n" % total_returnert)
+	
