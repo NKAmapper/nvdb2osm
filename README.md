@@ -44,5 +44,5 @@ Converts NVDB highway data to OSM
 
 * [vegkart.no](http://vegkart.no) - Statens Vegvesen: vegkart.no
 * [NVDB data catalogue](http://labs.vegdata.no/nvdb-datakatalog/) - All road objects by code and name
-* [NVDB api documentation](https://www.vegvesen.no/nvdb/apidokumentasjon/) - Description of api parameters
+* [NVDB api documentation](https://api.vegdata.no/) - Description of api parameters
 * [Håndbok V830](https://www.vegvesen.no/_attachment/61505) - Statens Vegvesen: Nasjonalt vegreferansesystem
