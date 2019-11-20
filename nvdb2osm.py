@@ -16,7 +16,7 @@ import sys
 import cgi
 
 
-version = "0.3.2"
+version = "0.3.3"
 
 debug = False
 debug_trase = False
@@ -492,6 +492,9 @@ def process_vegobjekt (data):
 							tag_property ("tunnel", "yes")
 							tag_property ("layer", "-1")
 
+					if ref['hp'] / 100 in [4, 5]:
+						tag_property ("junction", "roundabout")
+
 				if debug:
 
 					tag_property ("ID", str(road_object['id']))
@@ -729,4 +732,4 @@ if __name__ == '__main__':
 	print ("</osm>")
 
 	sys.stderr.write("Done processing %i road objects/links\n" % total_returnert)
-	
+
