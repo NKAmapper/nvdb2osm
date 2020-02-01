@@ -1,7 +1,7 @@
 # nvdb2osm
 Converts NVDB highway data to OSM file.
 
-To replace [elveg2osm](https://github.com/gomyhr/elveg2osm). Supports more features/tags and supports new municipality boundaries since 2020. Testing and feedback is encouraged.
+To replace [elveg2osm](https://github.com/gomyhr/elveg2osm). Supports v3 of NVDB (2020 onwards) and more features/tags. NVDB v3 and nvdb2osm is under development. Testing and feedback is encouraged.
 
 ### Usage
 1. **nvdb2osm -vegnett "kommune"**
