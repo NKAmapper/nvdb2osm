@@ -84,7 +84,7 @@ Optional arguments:
 ### References
 
 * [vegkart.no v3](https://vegkart-v3.utv.atlas.vegvesen.no/) - Statens Vegvesen: vegkart.no (new v3 test version).
-* [NVDB data catalogue](http://labs.vegdata.no/nvdb-datakatalog/) - All road objects by code and name.
+* [NVDB data catalogue](https://labs.vegdata.no/nvdb-datakatalog/) - All road objects by code and name.
 * [NVDB api documentation](https://nvdbapilesv3.docs.apiary.io/) - Description of API parameters.
 * [Håndbok V830](https://www.vegvesen.no/_attachment/61505) - Statens Vegvesen: Nasjonalt vegreferansesystem.
 * [Fiksvegdata](https://fiksvegdata.opentns.org/) - For reporting mistakes in NVDB.
