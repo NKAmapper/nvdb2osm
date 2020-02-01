@@ -684,7 +684,7 @@ def update_tags (segment, tags):
 		del segment['tags']['motorway']
 
 	elif "highway" in tags and tags['highway'] == "tertiary":
-		if "highway" in segment['tags'] and segment['tags']['highway'] in ["service", "residential", "unclassified"]:
+		if "highway" in segment['tags'] and segment['tags']['highway'] in ["service", "residential"]:
 			segment['tags'].update(tags)
 
 	# Only apply extra tunnel and bridge tags if tunnel/bridge already identified (from 'medium' attribute in road network)
