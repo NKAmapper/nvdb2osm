@@ -75,7 +75,7 @@ Optional arguments:
 ### Current limitations
 
 * Road objects will currently not get tagging for info from *other* road objects, such as speed limit, name, barrier etc.
-* For road objects, the OSM file will contain all data fields from NVDB in its original format. You will need to convert to proper OSM tagging. Referenced roads will get osm tagging automatically.
+* For road objects, the OSM file will contain info tags for all object data attributes from NVDB in its original format, with only limited OSM tagging supported. You will need to convert the info tagging to proper OSM tagging. Referenced roads will get osm tagging automatically.
 * Please observe that *road object* will only produce the centre line of the road, while *road network* will get all separate lanes, so you may want to use road network whenever possible.
 * The generated ways currently are sometimes self-intersecting. Run *simplify way* with a factor of 0.2 in JOSM to fix it. 
 * Road object ways currently have duplicate nodes at some intersections. Duplicates may be discovered and fixed automatically with the JOSM validator.
