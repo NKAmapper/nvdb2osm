@@ -82,7 +82,8 @@ Optional arguments:
 
 * Road objects will currently not get tagging for info from *other* road objects, such as speed limit, name, barrier etc.
 * For road objects, the OSM file will contain info tags for all object data attributes from NVDB in its original format, with only limited OSM tagging supported. You will need to convert the info tagging to proper OSM tagging. Referenced roads will get osm tagging automatically.
-* Please observe that *road object* will only produce the centre line of the road, while *road network* will get all separate lanes, so you may want to use road network whenever possible.
+* Please observe that *road object* will only produce the centre line of the road, while *road network* will get all separate left/right ways, so you may want to use road network whenever possible.
+* NVDB includes geometry for turn lanes. In OSM, however turn lanes should be tagged as turn:lanes instead of as separate ways. The generated OSM files includes these extra ways, but without a highway tag, so that they may be manually conflated in JOSM. Some of these ways should be kept as separate ways in OSM whenever they are physically separated from the main road, typically for lanes turning to the right.
 * The generated ways currently are sometimes self-intersecting. Run *simplify way* with a factor of 0.2 in JOSM to fix it. 
 * Road object ways currently have duplicate nodes at some intersections. Duplicates may be discovered and fixed automatically with the JOSM validator.
 * NVDB contains mistakes. You may report mistakes at [Fiksvegdata](https://fiksvegdata.opentns.org/). Rapid response.
