@@ -38,6 +38,12 @@ Optional arguments:
 * `-debug` - Get detailed information from NVDB
 * `-segmentert` - Get segmented road network, i.e. road segments are not combined into longer ways.
 
+### Example OSM files
+
+* Generated OSM files for a few municipalities in [this folder](https://www.jottacloud.com/s/059f4e21889c60d4e4aaa64cc857322b134)
+* You may generate more files using Python 2.7. No external dependencies beyond standard Python.
+* Program runs off standard MacOS out of the box, without any further installations required.
+
 ### Supported features
 
 * Roads will get tagging for the following features:
