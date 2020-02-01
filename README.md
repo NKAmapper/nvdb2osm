@@ -1,9 +1,10 @@
 # nvdb2osm
 Converts NVDB highway data to OSM file.
-Same as Elveg, but supporting more features/tags and supporting new municipality boundaries since 2020.
+
+To replace [elveg2osm](https://github.com/gomyhr/elveg2osm). Supports more features/tags and supports new municipality boundaries since 2020. Testing and feedback is encouraged.
 
 ### Usage
-1. **nvdb2osm -vegnett "kommune" > outfile.osm**
+1. **nvdb2osm -vegnett "kommune"**
    - Produces osm file with road network for a given municipality (4 digit municipality code)
    - Example: `nvdb2osm -vegnett 1301`for road network of Bergen
 
@@ -15,25 +16,30 @@ Same as Elveg, but supporting more features/tags and supporting new municipality
 3. **nvdb2osm -vegref "vegreferanse"**
    - Produces osm file with road network for given road reference code
    - Example: `nvdb2osm -vegref RA3` for Rv3 under construction (A)
-   - The reference code is found by clicking on a road in [vegkart.no](https://vegkart-v3.utv.atlas.vegvesen.no/) v3
+   - The reference code is found by clicking on a road in [vegkart.no v3](https://vegkart-v3.utv.atlas.vegvesen.no/)
   
 4. **nvdb2osm -vegurl "api url"**
-   - Produces osm file defined by given NVDB api url from [vegkart.no](https://vegkart-v3.utv.atlas.vegvesen.no/) v3 or any other permitted api url as described in [NVDB api documentation](https://nvdbapilesv3.docs.apiary.io/)
+   - Produces osm file defined by given NVDB api url from [vegkart.no v3](https://vegkart-v3.utv.atlas.vegvesen.no/) or any other permitted api url as described in [NVDB api documentation](https://nvdbapilesv3.docs.apiary.io/)
    - `&srid=wgs84` automatically added to the apri url string
    - Bounding box only supported for WGS84 coordinates, not UTM from [vegkart.no](https://vegkart-v3.utv.atlas.vegvesen.no/) v3 (you will need to remove it or convert to WGS84)
    - Please make sure that `inkluder=lokasjon,egenskaper,metadata,geometri,vegsegmenter` is included in the api url string 
    - Example 1: `nvdb2osm -vegurl "https://www.vegvesen.no/nvdb/api/v3/vegobjekter/532?segmentering=true&inkluder=lokasjon,egenskaper,metadata,geometri,vegsegmenter&egenskap=4567=7041"` for all construction road objects in Norway (NB: less detailed than a road network)
    - Example 2: Swap `7041` with `12160` in example 1 to get cycleways under construction
    - The api url is found by following this procudure:
-     - Searching for a feature in [vegkart.no](https://vegkart-v3.utv.atlas.vegvesen.no/)
+     - Searching for a feature in [vegkart.no v3](https://vegkart-v3.utv.atlas.vegvesen.no/)
      - Click *"xx vegobjekter"*
      - Copy the link behind *"api" below the list*
      - Remove the bounding box in the copied link if any (or convert it to WGS84 coordinates)
    - You may want to test the api url in your browser
 
+Optional arguments:
+
+* `-debug` - Get detailed information from NVDB
+* `-segmentert` - Get segmented road network, i.e. road segments are not combined into longer ways
+
 ### Supported features
 
-* Roads will get tagging for the following tagging:
+* Roads will get tagging for the following features:
   - Highway, including linked on/off ramps
   - Ref (2-3 digit county roads will get primary tagging, otherwise secondary)
   - Oneway streets
@@ -67,7 +73,7 @@ Same as Elveg, but supporting more features/tags and supporting new municipality
 
 ### Current limitations
 
-* The road network will currently not get tagging for information from other road objects, such as speed limit, name, barrier etc.
+* Road objects will currently not get tagging for information from *other* road objects, such as speed limit, name, barrier etc.
 * For road objects, the osm file will contain all data fields from NVDB in its original format. You will need to convert to proper osm tagging. Referenced roads will get osm tagging automatically.
 * Please observe that *road object* will only produce the center line of the road, while *road network* will get all separate lanes, so you may want to use road network whenever possible.
 * The generated ways currently are sometimes self-intersecting. Run *simplify way* with a factor of 0.2 in JOSM to fix it. 
@@ -76,7 +82,7 @@ Same as Elveg, but supporting more features/tags and supporting new municipality
 
 ### References
 
-* [vegkart.no](https://vegkart-v3.utv.atlas.vegvesen.no/) v3 - Statens Vegvesen: vegkart.no (new v3 test version)
+* [vegkart.no v3](https://vegkart-v3.utv.atlas.vegvesen.no/) - Statens Vegvesen: vegkart.no (new v3 test version)
 * [NVDB data catalogue](http://labs.vegdata.no/nvdb-datakatalog/) - All road objects by code and name
 * [NVDB api documentation](https://nvdbapilesv3.docs.apiary.io/) - Description of api parameters
 * [Håndbok V830](https://www.vegvesen.no/_attachment/61505) - Statens Vegvesen: Nasjonalt vegreferansesystem
