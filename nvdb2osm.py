@@ -17,11 +17,10 @@ import copy
 import math
 import calendar
 import time
-#from datetime import date
 from xml.etree import ElementTree as ET
 
 
-version = "0.4.0"
+version = "0.4.1"
 
 longer_ways = True      # True: Concatenate segments with identical tags into longer ways, within sequence
 debug = False           # True: Include detailed information tags for debugging
@@ -43,6 +42,11 @@ server = "https://apilesv3.test.atlas.vegvesen.no/"  # ATM - Test, akseptansetes
 #server = "https://www.test.vegvesen/nvdb/api/v3/"  # Systemtest ?
 #server = "https://www.vegvesen.no/nvdb/api/v3/"  # Prod ?
 
+request_headers = {
+	"X-Client": "nvdb2osm",
+	"X-Kontaktperson": "nkamapper@gmail.com",
+	"Accept": "application/vnd.vegvesen.nvdb-v3-rev1+json"
+}
 
 road_category = {
 	'E': {'name': 'Europaveg',    'tag': 'trunk'},
@@ -1250,7 +1254,7 @@ def create_turn_restriction (restriction, restriction_id):
 
 def get_road_object (object_id, **kwargs):
 
-	message("Processing object type #%s... " % object_id)
+	message("Merging object type #%s %s..." % (object_id, object_types[object_id]))
 
 	object_url = server + "vegobjekter/" + object_id + "?inkluder=metadata,egenskaper,lokasjon&alle_versjoner=false&srid=wgs84&kommune=" + municipality
 	if "property" in kwargs:
@@ -1259,7 +1263,7 @@ def get_road_object (object_id, **kwargs):
 	returned = 1
 	total_returned = 0
 	objects = []
-	object_name = ""
+#	object_name = ""
 
 	# Loop until no more pages to fetch
 
@@ -1357,7 +1361,7 @@ def get_road_object (object_id, **kwargs):
 #					else:
 #						message ("  *** Road object sequence %i not found in road network\n" % location['veglenkesekvensid'] )
 
-			object_name = "'%s'" % road_object['metadata']['type']['navn']
+#			object_name = "'%s'" % road_object['metadata']['type']['navn']
 
 		objects += data['objekter']
 
@@ -1365,7 +1369,7 @@ def get_road_object (object_id, **kwargs):
 		object_url= data['metadata']['neste']['href']
 		total_returned += returned
 
-	message("Done merging %i %s objects\n" % (total_returned, object_name))
+	message("  %i objects\n" % total_returned)
 
 	if debug:
 		debug_file = open("nvdb_vegobjekt_%s_input.json" % object_id, "w")
@@ -1380,7 +1384,7 @@ def get_road_object (object_id, **kwargs):
 
 def get_bridges_and_tunnels():
 
-	message("Processing tunnels and bridges... ")
+	message("Merging tunnels and bridges...")
 
 	object_url = url.replace("/segmentert", "")
 
@@ -1433,11 +1437,11 @@ def get_bridges_and_tunnels():
 			object_url= data['metadata']['neste']['href']
 		total_returned += returned
 
-	message ("Added %i tunnels and bridges\n" % count_objects)
+	message ("  %i tunnels and bridges\n" % count_objects)
 
 
 
-# Generate tagging for segment and store in network data strucutre
+# Generate tagging for road network segment and store in network data strucutre
 
 def process_road_network (segment):
 
@@ -1473,7 +1477,7 @@ def process_road_network (segment):
 		geometry = geometry[0]
 
 		if len(geometry) < 2 or len(geometry) == 2 and geometry[0] == geometry[1] or segment['lengde'] == 0:
-			message ("  *** Zero length segment excluded - %s\n" % segment_id)
+#			message ("  *** Zero length segment excluded - %s\n" % segment_id)
 			return
 
 #		if segment['lengde'] < node_margin:
@@ -1577,7 +1581,7 @@ def process_road_network (segment):
 
 
 
-# Vegobjekt
+# Generate tagging for road object and store in network data strucutre
 
 def process_road_object (road_object):
 
@@ -1704,7 +1708,7 @@ def tag_property (osm_element, tag_key, tag_value):
 
 def output_osm():
 
-	message ("Saving file... ")
+	message ("\nSaving file... ")
 
 	osm_id = -1000
 	count = 0
@@ -1807,15 +1811,10 @@ def output_osm():
 
 	# Produce OSM/XML file
 
-	if include_objects and function == "vegnett" or longer_ways:
-		filename = output_filename + ".osm"
-	else:
-		filename = output_filename + "_segmentert.osm"
-
 	osm_tree = ET.ElementTree(osm_root)
-	osm_tree.write(filename, encoding="utf-8", method="xml", xml_declaration=True)
+	osm_tree.write(output_filename, encoding="utf-8", method="xml", xml_declaration=True)
 
-	message ("Saved %i elements in file '%s'\n\n" % (count, filename))
+	message ("Saved %i elements in file '%s'\n\n" % (count, output_filename))
 
 
 
@@ -2168,11 +2167,13 @@ def fix_network():
 
 def get_data(url):
 
+	message ("Loading NVDB data...\n")
+
 	returned = 1
 	total_returned = 0
 
 	if debug:
-		debug_file = open(output_filename + "_input.json", "w")
+		debug_file = open("nvdb_%s_input.json" % function, "w")
 		debug_file.write("[\n")
 
 	# Loop until no more pages to fetch
@@ -2210,43 +2211,72 @@ def get_data(url):
 
 
 
+# Load data from api
+
+def load_data (url):
+
+	request = urllib2.Request(url, headers=request_headers)
+	file = urllib2.urlopen(request)
+	data = json.load(file)
+	file.close()
+
+	return data
+
+
+
 # Main program
 
 if __name__ == '__main__':
 
-	message ("\nnvdb2osm v%s\n" % version)
+	start_time = time.time()
+	message ("\nnvdb2osm v%s\n\n" % version)
+
+	# Get database status
+
+	data = load_data(server + "status")
+	message ("Server:         %s\n" % server)
+	message ("Data catalogue: %s, %s\n" % (data['datagrunnlag']['datakatalog']['versjon'], data['datagrunnlag']['datakatalog']['dato']))
+	message ("Last update:    %s\n\n" % data['datagrunnlag']['sist_oppdatert'][:10])
+
+	# Get municipalities and road object types
+
+	data = load_data("https://ws.geonorge.no/kommuneinfo/v1/kommuner")
+	municipalities = {}
+	for entry in data:
+		municipalities[ entry['kommunenummer'] ] = entry['kommunenavn']
+
+	data = load_data(server + "vegobjekttyper")
+	object_types = {}
+	for entry in data:
+		object_types[ str(entry['id']) ] = entry['navn']
+	del data
+
+	# Build query
 
 	url = ""
 	municipality = ""
+	object_type = ""
 
 	if len(sys.argv) > 2:
 		if (sys.argv[1] == "-vegnett") and len(sys.argv) >= 3 and sys.argv[2].isdigit():
 			municipality = sys.argv[2]
 			url = server + "vegnett/veglenkesekvenser/segmentert?srid=wgs84&kommune=" + municipality
-			output_filename = "nvdb_%s_vegnett" % municipality
 
 		elif (sys.argv[1] == "-vegref") and (len(sys.argv) >= 3):
 			url = server + "vegnett/veglenkesekvenser/segmentert?srid=wgs84&vegsystemreferanse=" + sys.argv[2]
-			output_filename = "nvdb_vegnett"
 			include_objects = False
 
 		elif (sys.argv[1] == "-vegobjekt") and (len(sys.argv) >= 4) and sys.argv[2].isdigit() and sys.argv[3].isdigit():
+			object_type = sys.argv[2]
 			municipality = sys.argv[3]
 			url = server + "vegobjekter/" + sys.argv[2] + "?inkluder=metadata,egenskaper,geometri,lokasjon,vegsegmenter&alle_versjoner=false&srid=wgs84&kommune=" + municipality
-			output_filename = "nvdb_%s_vegobjekt_%s" % (municipality, sys.argv[2])
 
 		elif (sys.argv[1] == "-vegobjekt") and (len(sys.argv) >= 3) and sys.argv[2].isdigit():
+			object_type = sys.argv[2]
 			url = server + "vegobjekter/" + sys.argv[2] + "?inkluder=metadata,egenskaper,geometri,lokasjon,vegsegmenter&alle_versjoner=false&srid=wgs84"
-			output_filename = "nvdb_vegobjekt_%s" % sys.argv[2]
 
 		elif (sys.argv[1] == "-vegurl") and ("vegvesen.no" in sys.argv[2]):
 			url = sys.argv[2] + "&srid=wgs84"
-			if "vegnett" in url:
-				output_filename = "nvdb_vegnett"
-			elif "vegobjekt" in url:
-				output_filename = "nvdb_vegobjekt"
-			else:
-				output_filename = "nvdb"
 
 		if "-segmentert" in sys.argv:
 			longer_ways = False
@@ -2263,10 +2293,44 @@ if __name__ == '__main__':
 		else:
 			function = ""
 
-	if url:
-		message("Generating osm file for: %s\n" % url)
+	# Check parameters and set output filename
+
+	output_filename = "nvdb"
+
+	if url and municipality:
+		if municipality in municipalities:
+			message ("Municipality:   #%s %s\n" % (municipality, municipalities[municipality]))
+			if not object_type:
+				output_filename += "_" + municipality + "_" + municipalities[municipality].replace(" ", "_")
+		else:
+			message ("*** Municipality %s not found\n" % municipality)
+			url = ""
+
+	if url and object_type:
+		if object_type in object_types:
+			message ("Road object:    #%s %s\n" % (object_type, object_types[object_type]))
+			output_filename += "_" + object_type + "_" + object_types[object_type].replace(" ", "_")
+		else:
+			message ("*** Road object type %s not found\n" % object_type)
+			url = ""
+
+	if output_filename == "nvdb":
+		output_filename += "_" + function
+
+	if include_objects and function == "vegnett" or longer_ways:
+		output_filename = output_filename + ".osm"
 	else:
-		message("Please provide parameters in one of the following ways:\n")
+		output_filename = output_filename + "_segmentert.osm"
+
+	for argument in sys.argv[3:]:
+		if ".osm" in argument.lower():
+			output_filename = argument.replace(" ", "_")
+
+	if url:
+		message("Query:          %s\n" % url)
+		message("Ouput filename: %s\n\n" % output_filename)
+	else:
+		message("\nPlease provide parameters in one of the following ways:\n")
 		message('  nvdb2osm -vegnett <nnnn>  -->  Road network for municipality number (4 digits)\n')
 		message('  nvdb2osm -vegref <reference>  -->  Road network for road reference code (e.g. "0400Ea6")\n')		
 		message('  nvdb2osm -vegobjekt <nnn>  -->  Road object number (2-3 digits) for entire country\n')
@@ -2274,13 +2338,7 @@ if __name__ == '__main__':
 		message('  nvdb2osm -url "<api url string>"  -->  Any api generated from vegkart.no (UTM bounding box not supported, wgs84 appended)\n')
 		sys.exit()
 
-	request_headers = {
-		"X-Client": "nvdb2osm",
-		"X-Kontaktperson": "nkamapper@gmail.com",
-		"Accept": "application/vnd.vegvesen.nvdb-v3-rev1+json"
-	}
-
-	start_time = time.time()
+	# Init
 
 	nodes = {}      # All endpoint nodes
 	segments = {}   # All segments and road objects
