@@ -37,6 +37,7 @@ Optional arguments:
 
 * `-debug` - Get detailed information from NVDB
 * `-segmentert` - Get segmented road network, i.e. road segments are not combined into longer ways.
+* `"filnavn.osm"` - Set output filename (must end with ".osm")
 
 ### Example OSM files
 
