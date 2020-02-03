@@ -62,6 +62,8 @@ Optional arguments:
   - Max speeds.
   - Surface (asphalt excluded).
   - Max height.
+  - Max weight, for bridges only.
+  - Max length, for tertiary and higher road classes.
   - No snowplowing (national and county roads only).
   - Access restrictions.
   - Tunnel names, descriptions and access restrictions for bicycle and pedestrians.
