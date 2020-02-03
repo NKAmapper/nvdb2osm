@@ -624,6 +624,12 @@ def tag_object (object_id, properties, tags):
 		if u"Skilta høyde" in properties:
 			tags['maxheight'] = str(properties[u'Skilta høyde'])
 
+	elif object_id == "904":
+		if "tonn" in properties['Bruksklasse'] and "50 tonn" not in properties['Bruksklasse']:
+			tags['maxweight'] = properties['Bruksklasse'][-7:-5]
+		if properties['Maks vogntoglengde'] in ['12,40', '15,00']:
+			tags['maxlength'] = properties['Maks vogntoglengde'].replace(",", ".")
+
 	elif object_id == "64":
 		tags['amenity'] = "ferry_terminal"
 		if "Navn" in properties:
@@ -687,13 +693,30 @@ def update_tags (segment, tags):
 		segment['tags'].update(tags)
 		del segment['tags']['motorway']
 
+	# Apply tertiary tag to service and residential roads only
 	elif "highway" in tags and tags['highway'] == "tertiary":
 		if "highway" in segment['tags'] and segment['tags']['highway'] in ["service", "residential"]:
 			segment['tags'].update(tags)
 
 	# Only apply extra tunnel and bridge tags if tunnel/bridge already identified (from 'medium' attribute in road network)
-	elif "tunnel" in tags and "tunnel" not in segment['tags'] or "bridge" in tags and "bridge" not in segment['tags']:
-		return
+	elif "tunnel" in tags or "bridge" in tags:
+		if "tunnel" in tags and "tunnel" in segment['tags'] or "bridge" in tags and "bridge" in segment['tags']:
+			segment['tags'].update(tags)
+
+	# Max weight for bridges only. 	Max length tags for tertiary and above road classes only
+	elif "maxlength" in tags or "maxweight" in tags:
+		if "maxlength" in tags and "highway" in segment['tags'] and segment['tags']['highway'] in \
+				['motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link']:
+			new_tags = {
+				'maxlength': tags['maxlength']
+			}
+			segment['tags'].update(new_tags)
+
+		if "maxweight" in tags and "bridge" in segment['tags']:
+			new_tags = {
+				'maxweight': tags['maxweight']
+			}
+			segment['tags'].update(new_tags)
 
 	else:
 		segment['tags'].update(tags)
@@ -2385,6 +2408,7 @@ if __name__ == '__main__':
 		get_road_object ("856")  # Access restrictions
 		get_road_object ("107")  # Weather restrictions
 		get_road_object ("591")  # Maxheight
+		get_road_object ("904")  # Maxweight, maxlength
 		get_road_object ("96", property="(5530=7643)")  # Stop sign
 		
 		get_road_object ("573")  # Turn restrictions
