@@ -693,6 +693,16 @@ def update_tags (segment, tags):
 		segment['tags'].update(tags)
 		del segment['tags']['motorway']
 
+	# No maxspeed for service
+	elif "maxspeed" in tags:
+		if not ("highway" in segment['tags'] and segment['tags']['highway'] == "service"):
+			segment['tags'].update(tags)
+
+	# No street name for cycleways/footways and roundabouts
+	elif "name" in tags:
+		if not ("junction" in segment['tags'] and segment['tags']['junction'] == "roundabout"):
+			segment['tags'].update(tags)
+
 	# Apply tertiary tag to service and residential roads only
 	elif "highway" in tags and tags['highway'] == "tertiary":
 		if "highway" in segment['tags'] and segment['tags']['highway'] in ["service", "residential"]:
@@ -720,16 +730,6 @@ def update_tags (segment, tags):
 
 	else:
 		segment['tags'].update(tags)
-		# No maxspeed or street name in cycleway, footway
-		if "highway" in segment['tags'] and segment['tags']['highway'] in ["cycleway", "footway"]:
-			if "maxspeed" in tags:
-				del segment['tags']['maxspeed']
-			if "name" in tags:
-				del segment['tags']['name']
-		# No street name in roundabout
-		if "junction" in segment['tags'] and segment['tags']['junction'] == "roundabout":
-			if "name" in tags:
-				del segment['tags']['name']
 
 
 
