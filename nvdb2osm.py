@@ -20,7 +20,7 @@ import time
 from xml.etree import ElementTree as ET
 
 
-version = "0.4.1"
+version = "0.4.2"
 
 longer_ways = True      # True: Concatenate segments with identical tags into longer ways, within sequence
 debug = False           # True: Include detailed information tags for debugging
@@ -37,8 +37,8 @@ max_travel_depth = 10   # Maximum depth of recursive calls when finding route
 
 #server = "https://apilesv3.utv.atlas.vegvesen.no/"  # UTV - Utvikling
 #server = "https://apilesv3-stm.utv.atlas.vegvesen.no/"  # STM - Systemtest
-server = "https://apilesv3.test.atlas.vegvesen.no/"  # ATM - Test, akseptansetest
-#server = "https://apilesv3.atlas.vegvesen.no/"  # Prod
+#server = "https://apilesv3.test.atlas.vegvesen.no/"  # ATM - Test, akseptansetest
+server = "https://apilesv3.atlas.vegvesen.no/"  # Prod
 #server = "https://www.test.vegvesen/nvdb/api/v3/"  # Systemtest ?
 #server = "https://www.vegvesen.no/nvdb/api/v3/"  # Prod ?
 
