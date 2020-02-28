@@ -16,13 +16,13 @@ To replace [elveg2osm](https://github.com/gomyhr/elveg2osm). Supports v3 of NVDB
 3. **nvdb2osm -vegref "vegreferanse"**
    - Produces OSM file with road network for given road reference code.
    - Example: `nvdb2osm -vegref RA3` for Rv3 under construction (A).
-   - The reference code is found by clicking on a road in [vegkart.no v3](https://vegkart-v3.utv.atlas.vegvesen.no/).
+   - The reference code is found by clicking on a road in [vegkart.no v3](https://www.vegvesen.no/nvdb/vegkart/v3/).
 
 4. **nvdb2osm -vegurl "api url"**
-   - Produces OSM file defined by given NVDB API URL from [vegkart.no v3](https://vegkart-v3.utv.atlas.vegvesen.no/) or
+   - Produces OSM file defined by given NVDB API URL from [vegkart.no v3](https://www.vegvesen.no/nvdb/vegkart/v3/) or
    any other permitted API URL as described in the [NVDB API documentation](https://nvdbapilesv3.docs.apiary.io/).
    - `&srid=wgs84` automatically added to the API URL string.
-   - Bounding box only supported for WGS84 coordinates, not UTM from [vegkart.no](https://vegkart-v3.utv.atlas.vegvesen.no/) v3 (you will need to remove it or convert to WGS84).
+   - Bounding box only supported for WGS84 coordinates, not UTM from [vegkart.no v3](https://www.vegvesen.no/nvdb/vegkart/v3/) (you will need to remove it or convert to WGS84).
    - Please make sure that `inkluder=lokasjon,egenskaper,metadata,geometri,vegsegmenter` is included in the API URL string.
    - Example 1: `nvdb2osm -vegurl "https://www.vegvesen.no/nvdb/api/v3/vegobjekter/532?segmentering=true&inkluder=lokasjon,egenskaper,metadata,geometri,vegsegmenter&egenskap=4567=7041"` for all construction road objects in Norway (NB: Less detailed than a road network).
    - Example 2: Swap `7041` with `12160` in example 1 to get cycleways under construction.
@@ -52,7 +52,7 @@ Optional arguments:
   - Ref (2-3 digit county roads will get primary tagging, otherwise secondary).
   - One-way streets.
   - Roundabouts.
-  - Turn:lanes (may need to be adjusted manually).
+  - Turn:lanes (may need to be adjusted manually; enable "Lane and road attributes" style in JOSM).
   - PSV lanes.
   - Tunnels and bridges (temporary fix due to NVDB API limitations).
 * The following additional road objects from NVDB at the way level are supported:
@@ -60,10 +60,10 @@ Optional arguments:
   - Tertiary roads based on NVDB functional road class (maintained in NVDB only in a few municipalities, e.g. Oslo).
   - Street names.
   - Max speeds.
-  - Surface (asphalt excluded).
   - Max height.
   - Max weight, for bridges only.
   - Max length, for tertiary and higher road classes.
+  - Surface (asphalt excluded).
   - No snowplowing (national and county roads only).
   - Access restrictions.
   - Tunnel names, descriptions and access restrictions for bicycle and pedestrians.
@@ -93,7 +93,7 @@ Optional arguments:
 
 ### References
 
-* [vegkart.no v3](https://vegkart-v3.utv.atlas.vegvesen.no/) - Statens Vegvesen: vegkart.no (new v3 test version).
+* [vegkart.no v3](https://www.vegvesen.no/nvdb/vegkart/v3/) - Statens Vegvesen: vegkart.no (new v3 version).
 * [NVDB data catalogue](https://labs.vegdata.no/nvdb-datakatalog/) - All road objects by code and name.
 * [NVDB api documentation](https://nvdbapilesv3.docs.apiary.io/) - Description of API parameters.
 * [Håndbok V830](https://www.vegvesen.no/_attachment/61505) - Statens Vegvesen: Nasjonalt vegreferansesystem.
