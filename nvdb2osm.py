@@ -20,7 +20,7 @@ import time
 from xml.etree import ElementTree as ET
 
 
-version = "0.4.2"
+version = "0.4.3"
 
 longer_ways = True      # True: Concatenate segments with identical tags into longer ways, within sequence
 debug = False           # True: Include detailed information tags for debugging
@@ -35,12 +35,10 @@ angle_margin = 45.0     # Maximum change of bearing at intersection for merging 
 max_travel_depth = 10   # Maximum depth of recursive calls when finding route
 
 
-#server = "https://apilesv3.utv.atlas.vegvesen.no/"  # UTV - Utvikling
-#server = "https://apilesv3-stm.utv.atlas.vegvesen.no/"  # STM - Systemtest
-#server = "https://apilesv3.test.atlas.vegvesen.no/"  # ATM - Test, akseptansetest
-server = "https://apilesv3.atlas.vegvesen.no/"  # Prod
-#server = "https://www.test.vegvesen/nvdb/api/v3/"  # Systemtest ?
-#server = "https://www.vegvesen.no/nvdb/api/v3/"  # Prod ?
+#server = "https://nvdbapiles-v3.utv.atlas.vegvesen.no/"  # UTV - Utvikling
+#server = "https://nvdbapiles-v3-stm.utv.atlas.vegvesen.no/"  # STM - Systemtest
+#server = "https://nvdbapiles-v3.test.atlas.vegvesen.no/"  # ATM - Test, akseptansetest
+server = "https://nvdbapiles-v3.atlas.vegvesen.no/"  # Produksjon
 
 request_headers = {
 	"X-Client": "nvdb2osm",
@@ -1237,7 +1235,7 @@ def create_turn_restriction (restriction, restriction_id):
 			via_node_id = best_route[i]
 			new_restriction['via_node'] = via_node_id
 			new_restriction['fixme'] = False
-			if angle < -135:  # -150
+			if angle < -135 or angle < -90 and segments[ new_restriction['from_segment'] ]['parent'] == segments[ new_restriction['to_segment'] ]['parent']:  # -150
 				new_restriction['type'] = "no_u_turn"
 			elif angle < 0:  # < 45
 				new_restriction['type'] = "no_left_turn"
@@ -2420,4 +2418,4 @@ if __name__ == '__main__':
 
 	output_osm()
 
-	message ("Time: %i seconds\n\n" % (time.time() - start_time))
+	message ("Time: %i seconds (%i segments per second)\n\n" % ((time.time() - start_time), (len(segments) / (time.time() - start_time))))
