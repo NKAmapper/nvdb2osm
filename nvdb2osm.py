@@ -293,7 +293,7 @@ def tag_highway (segment, lanes, tags, extras):
 	if ref['fase'] == "A":
 		tags['highway'] = "construction"
 		tag_key = "construction"
-	elif ref['fase'] in ["P"]:
+	elif ref['fase'] ==  "P":
 		if segment['typeVeg'] in ["Bilferje", "Passasjerferje"]:
 			tag_key = "proposed:route"
 		else:
@@ -1466,7 +1466,7 @@ def get_bridges_and_tunnels():
 
 def process_road_network (segment):
 
-	if segment[u'detaljnivå'] != "Vegtrase":
+	if segment[u'detaljnivå'] != "Vegtrase" and segment['vegsystemreferanse']['vegsystem']['fase'] != "F":
 
 		tags = {}
 		extras = {}
@@ -2407,6 +2407,7 @@ if __name__ == '__main__':
 		get_road_object ("107")  # Weather restrictions
 		get_road_object ("591")  # Maxheight
 		get_road_object ("904")  # Maxweight, maxlength
+		
 		get_road_object ("96", property="(5530=7643)")  # Stop sign
 		
 		get_road_object ("573")  # Turn restrictions
