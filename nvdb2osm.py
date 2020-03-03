@@ -20,7 +20,7 @@ import time
 from xml.etree import ElementTree as ET
 
 
-version = "0.4.3"
+version = "0.4.4"
 
 longer_ways = True      # True: Concatenate segments with identical tags into longer ways, within sequence
 debug = False           # True: Include detailed information tags for debugging
@@ -1466,7 +1466,8 @@ def get_bridges_and_tunnels():
 
 def process_road_network (segment):
 
-	if segment[u'detaljnivå'] != "Vegtrase" and segment['vegsystemreferanse']['vegsystem']['fase'] != "F":
+	if segment[u'detaljnivå'] != "Vegtrase" and \
+			("vegsystemreferanse" not in segment or "vegsystem" not in segment['vegsystemreferanse'] or segment['vegsystemreferanse']['vegsystem']['fase'] != "F"):
 
 		tags = {}
 		extras = {}
@@ -2420,3 +2421,4 @@ if __name__ == '__main__':
 	output_osm()
 
 	message ("Time: %i seconds (%i segments per second)\n\n" % ((time.time() - start_time), (len(segments) / (time.time() - start_time))))
+
