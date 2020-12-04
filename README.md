@@ -5,11 +5,11 @@ To replace [elveg2osm](https://github.com/gomyhr/elveg2osm). Supports v3 of NVDB
 
 ### Usage
 1. **nvdb2osm -vegnett "kommune"**
-   - Produces OSM file with road network for a given municipality (4 digit municipality code).
+   - Produces OSM file with road network for a given municipality (name or 4 digit municipality code).
    - Example: `nvdb2osm -vegnett 4601`for the road network of Bergen.
 
 2. **nvdb2osm -vegobjekt "vegobjektkode" ["kommune"]**
-   - Produces OSM file with all road objects of a given [type](http://labs.vegdata.no/nvdb-datakatalog/) (2-3 digit object code).
+   - Produces OSM file with all road objects of a given [type](http://labs.vegdata.no/nvdb-datakatalog/) (name or 2-3 digit object code).
    - Optionally within a given municipality (4 digit municipality code), else for the entire country of Norway.
    - Example: `nvdb2osm -vegobjekt 103 0301` for all traffic calming/speed bumps in Oslo.
 
