@@ -20,7 +20,7 @@ import time
 from xml.etree import ElementTree as ET
 
 
-version = "0.4.4"
+version = "0.5.0"
 
 longer_ways = True      # True: Concatenate segments with identical tags into longer ways, within sequence
 debug = False           # True: Include detailed information tags for debugging
@@ -37,7 +37,7 @@ max_travel_depth = 10   # Maximum depth of recursive calls when finding route
 
 #server = "https://nvdbapiles-v3.utv.atlas.vegvesen.no/"  # UTV - Utvikling
 #server = "https://nvdbapiles-v3-stm.utv.atlas.vegvesen.no/"  # STM - Systemtest
-#server = "https://nvdbapiles-v3.test.atlas.vegvesen.no/"  # ATM - Test, akseptansetest
+#server = "https://nvdbapiles-v3.test.atlas.vegvesen.no/"  # ATM - Testproduksjon
 server = "https://nvdbapiles-v3.atlas.vegvesen.no/"  # Produksjon
 
 request_headers = {
@@ -578,7 +578,7 @@ def tag_object (object_id, properties, tags):
 		if properties['Trafikklys'] == "Ja":
 			tags['crossing'] = "controlled"  # crossing = controlled / traffic_signals ?
 		elif properties['Markering av striper'] == "Malte striper":
-			tags['crossing'] = "marked"
+			tags['crossing'] = "uncontrolled"  # crossing = marked / uncontrolled ?
 		elif properties['Markering av striper'] == "Ikke striper":
 			tags['crossing'] = "unmarked"
 		if properties [u"Trafikkøy"] == "Ja":
@@ -617,6 +617,8 @@ def tag_object (object_id, properties, tags):
 				tags['surface'] = "wood"
 			elif properties['Massetype'] == u"Stålgitter (bru)":
 				tags['surface'] = "metal"
+		else:
+			tags['surface'] = "asphalt"
 
 	elif object_id == "591":
 		if u"Skilta høyde" in properties:
@@ -1376,8 +1378,8 @@ def get_road_object (object_id, **kwargs):
 #							else:
 #								message ("  *** Equal start and end positions in location - %i\n" % road_object['id'])
 
-						# For pedestrian crossings, only accept "M" positions
-						elif location['stedfestingstype'] == "Punkt" and ("sideposisjon" not in location or location['sideposisjon'] == "M"):  # or object_id == "96"
+						# For points, only accept "M" positions
+						elif location['stedfestingstype'] == "Punkt" and ("sideposisjon" not in location or location['sideposisjon'] == "M" or object_id == "96"):
 							update_segments_point (location['veglenkesekvensid'], location['relativPosisjon'], tags, extras)
 #					else:
 #						message ("  *** Road object sequence %i not found in road network\n" % location['veglenkesekvensid'] )
@@ -2193,6 +2195,7 @@ def get_data(url):
 
 	returned = 1
 	total_returned = 0
+	medium_detected = False
 
 	if debug:
 		debug_file = open("nvdb_%s_input.json" % function, "w")
@@ -2214,8 +2217,11 @@ def get_data(url):
 			if "geometri" in record:
 				if "vegobjekt" in url:
 					process_road_object(record)
-				elif "vegnett" in url:
+				elif "vegnett" in url:  # and record['metadata']['startdato'] > "2020":  # u'måledato' in record and record[u'måledato'] > "2020":
 					process_road_network(record)
+				if "medium" in record['geometri'] and not medium_detected:
+					message ("\n   *** MEDIUM DETECTED ***\n\n")
+					medium_detected = True
 
 		returned = data['metadata']['returnert']
 		url = data['metadata']['neste']['href']
@@ -2244,6 +2250,32 @@ def load_data (url):
 
 	return data
 
+
+# Identify municipality name, unless more than one hit
+# Returns municipality number, or input paramter if not found
+
+def get_municipality (parameter):
+
+	if parameter.isdigit():
+		return parameter
+
+	else:
+		parameter = parameter.decode("utf-8")
+		found_id = ""
+		duplicate = False
+		for mun_id, mun_name in municipalities.iteritems():
+			if parameter.lower() == mun_name.lower():
+				return mun_id
+			elif parameter.lower() in mun_name.lower():
+				if found_id:
+					duplicate = True
+				else:
+					found_id = mun_id
+
+		if found_id and not duplicate:
+			return found_id
+		else:
+			return parameter
 
 
 # Main program
@@ -2280,17 +2312,17 @@ if __name__ == '__main__':
 	object_type = ""
 
 	if len(sys.argv) > 2:
-		if (sys.argv[1] == "-vegnett") and len(sys.argv) >= 3 and sys.argv[2].isdigit():
-			municipality = sys.argv[2]
+		if (sys.argv[1] == "-vegnett") and len(sys.argv) >= 3:
+			municipality = get_municipality(sys.argv[2])
 			url = server + "vegnett/veglenkesekvenser/segmentert?srid=wgs84&kommune=" + municipality
 
 		elif (sys.argv[1] == "-vegref") and (len(sys.argv) >= 3):
 			url = server + "vegnett/veglenkesekvenser/segmentert?srid=wgs84&vegsystemreferanse=" + sys.argv[2]
 			include_objects = False
 
-		elif (sys.argv[1] == "-vegobjekt") and (len(sys.argv) >= 4) and sys.argv[2].isdigit() and sys.argv[3].isdigit():
+		elif (sys.argv[1] == "-vegobjekt") and (len(sys.argv) >= 4) and sys.argv[2].isdigit():
 			object_type = sys.argv[2]
-			municipality = sys.argv[3]
+			municipality = get_municipality(sys.argv[3])
 			url = server + "vegobjekter/" + sys.argv[2] + "?inkluder=metadata,egenskaper,geometri,lokasjon,vegsegmenter&alle_versjoner=false&srid=wgs84&kommune=" + municipality
 
 		elif (sys.argv[1] == "-vegobjekt") and (len(sys.argv) >= 3) and sys.argv[2].isdigit():
@@ -2421,4 +2453,3 @@ if __name__ == '__main__':
 	output_osm()
 
 	message ("Time: %i seconds (%i segments per second)\n\n" % ((time.time() - start_time), (len(segments) / (time.time() - start_time))))
-
