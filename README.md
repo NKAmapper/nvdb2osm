@@ -16,18 +16,18 @@ To replace [elveg2osm](https://github.com/gomyhr/elveg2osm). Supports v3 of NVDB
 3. **nvdb2osm -vegref "vegreferanse"**
    - Produces OSM file with road network for given road reference code.
    - Example: `nvdb2osm -vegref RA3` for Rv3 under construction (A).
-   - The reference code is found by clicking on a road in [vegkart.no v3](https://www.vegvesen.no/nvdb/vegkart/v3/).
+   - The reference code is found by clicking on a road in [vegkart.no v3](http://vegkart.no).
 
 4. **nvdb2osm -vegurl "api url"**
-   - Produces OSM file defined by given NVDB API URL from [vegkart.no v3](https://www.vegvesen.no/nvdb/vegkart/v3/) or
-   any other permitted API URL as described in the [NVDB API documentation](https://nvdbapilesv3.docs.apiary.io/).
+   - Produces OSM file defined by given NVDB API URL from [vegkart.no v3](http://vegkart.no) or
+   any other permitted API URL as described in the [NVDB API documentation](https://nvdbapiles-v3.atlas.vegvesen.no/dokumentasjon/).
    - `&srid=wgs84` automatically added to the API URL string.
-   - Bounding box only supported for WGS84 coordinates, not UTM from [vegkart.no v3](https://www.vegvesen.no/nvdb/vegkart/v3/) (you will need to remove it or convert to WGS84).
+   - Bounding box only supported for WGS84 coordinates, not UTM from [vegkart.no v3](http://vegkart.no) (you will need to remove it or convert to WGS84).
    - Please make sure that `inkluder=lokasjon,egenskaper,metadata,geometri,vegsegmenter` is included in the API URL string.
-   - Example 1: `nvdb2osm -vegurl "https://www.vegvesen.no/nvdb/api/v3/vegobjekter/532?segmentering=true&inkluder=lokasjon,egenskaper,metadata,geometri,vegsegmenter&egenskap=4567=7041"` for all construction road objects in Norway (NB: Less detailed than a road network).
+   - Example 1: `nvdb2osm -vegurl "https://nvdbapiles-v3.atlas.vegvesen.no/vegobjekter/532?segmentering=true&inkluder=lokasjon,egenskaper,metadata,geometri,vegsegmenter&egenskap=4567=7041"` for all construction road objects in Norway (NB: Less detailed than a road network).
    - Example 2: Swap `7041` with `12160` in example 1 to get cycleways under construction.
    - The API URL is found by following this procedure:
-     - Searching for a feature in [vegkart.no v3](https://vegkart-v3.utv.atlas.vegvesen.no/).
+     - Searching for a feature in [vegkart.no v3](http://vegkart.no) (see vegkart [tutorial](https://www.vegdata.no/vegkart/brukerveiledning/) )
      - Click *"xx vegobjekter"*.
      - Copy the link behind *"API" below the list*.
      - Remove the bounding box in the copied link if any (or convert it to WGS84 coordinates).
@@ -93,8 +93,8 @@ Optional arguments:
 
 ### References
 
-* [vegkart.no v3](https://www.vegvesen.no/nvdb/vegkart/v3/) - Statens Vegvesen: vegkart.no (new v3 version).
+* [vegkart.no v3](http://vegkart.no) - Statens Vegvesen: vegkart.no (new v3 version).
 * [NVDB data catalogue](https://labs.vegdata.no/nvdb-datakatalog/) - All road objects by code and name.
-* [NVDB api documentation](https://nvdbapilesv3.docs.apiary.io/) - Description of API parameters.
+* [NVDB api documentation](https://nvdbapiles-v3.atlas.vegvesen.no/dokumentasjon/) - Description of API parameters.
 * [Håndbok V830](https://www.vegvesen.no/_attachment/61505) - Statens Vegvesen: Nasjonalt vegreferansesystem.
 * [Fiksvegdata](https://fiksvegdata.opentns.org/) - For reporting mistakes in NVDB.
