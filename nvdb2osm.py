@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf8
 
 # nvdb2osm.py
@@ -11,7 +11,7 @@
 #       "&srid=wgs84" automatically added. Bounding box only supported for wgs84 coordinates, not UTM from vegkart.no. 
 
 import json
-import urllib2
+import urllib.request
 import sys
 import copy
 import math
@@ -20,7 +20,7 @@ import time
 from xml.etree import ElementTree as ET
 
 
-version = "0.5.0"
+version = "1.0.0"
 
 longer_ways = True      # True: Concatenate segments with identical tags into longer ways, within sequence
 debug = False           # True: Include detailed information tags for debugging
@@ -898,6 +898,8 @@ def clip_segment (segment, clip_position):
 def update_segments_line (parent_sequence_id, tag_start, tag_end, direction, new_tags, new_extras):
 
 	# Additional tags for tunnels and bridges, which already have 'tunnel' and 'bridge' tags
+	# Problem not solved: Separate south/northbound bridges in certain cases
+
 	if "tunnel" in new_tags or "bridge" in new_tags:
 		for segment_id in parents[parent_sequence_id][:]:
 			segment = segments[ segment_id ]
@@ -1012,46 +1014,6 @@ def update_segments_point (parent_sequence_id, tag_position, new_tags, new_extra
 			segment['geometry'][node_index][2].update(new_tags)
 			if debug:
 				segment['geometry'][node_index][2].update(new_extras)
-
-
-
-# Traverse network to tag tunnels (or any other tag given by search_tag)
-# Not currently used but kept for later
-
-def traverse_and_tag (segment_id, search_tag, path_travelled, new_tags, new_extras):
-
-	segment = segments[segment_id]
-
-	if search_tag not in segment['tags']:  # No tunnel
-		return
-	
-	if segment_id in path_travelled:  # Circular, segment already visited
-		return
-
-	segment['tags'].update(new_tags)
-	segment['extras'].update(new_extras)
-	new_path_travelled = copy.deepcopy(path_travelled)
-	new_path_travelled.append(segment_id)
-
-	for node_id in [segment['start_node'], segment['end_node']]:
-		for next_segment_id in nodes[ node_id ]['ways']:
-			if next_segment_id != segment_id:
-				traverse_and_tag (next_segment_id, search_tag, new_path_travelled, new_tags, new_extras)
-
-
-
-# Tag all connected tunnel segments with more tags (name etc)
-# Not currently used but kept for later
-
-def update_tunnels (parent_sequence_id, tag_position, new_tags, new_extras):
-
-	if "tunnel" not in new_tags:
-		return
-
-	for segment_id in parents[parent_sequence_id]:
-		segment = segments[segment_id]
-		if segment['parent_start'] <= tag_position <= segment['parent_end']:
-			traverse_and_tag (segment_id, "tunnel", [], new_tags, new_extras)
 
 
 
@@ -1258,7 +1220,7 @@ def create_turn_restriction (restriction, restriction_id):
 	# Check if identical restriction already stored
 
 	found = False
-	for turn_restriction_id, turn_restriction in turn_restrictions.iteritems():
+	for turn_restriction_id, turn_restriction in iter(turn_restrictions.items()):
 		if turn_restriction == new_restriction:
 			found = True
 			break
@@ -1291,8 +1253,8 @@ def get_road_object (object_id, **kwargs):
 	# Loop until no more pages to fetch
 
 	while returned> 0:
-		request = urllib2.Request(object_url, headers=request_headers)
-		file = urllib2.urlopen(request)
+		request = urllib.request.Request(object_url, headers=request_headers)
+		file = urllib.request.urlopen(request)
 		data = json.load(file)
 		file.close()
 
@@ -1327,10 +1289,8 @@ def get_road_object (object_id, **kwargs):
 
 			tag_object(object_id, properties, tags)
 
-			# Updae all connected tunnel segments
+			# Update all connected tunnel segments
 			if object_id == "581" and tags:
-#				for location in locations:
-#					update_tunnels (location['veglenkesekvensid'], location['relativPosisjon'], tags, extras)
 				for tunnel in associated_tunnels:
 					tunnels[ tunnel['verdi'] ] = {
 						'tags': tags,
@@ -1398,70 +1358,6 @@ def get_road_object (object_id, **kwargs):
 		debug_file = open("nvdb_vegobjekt_%s_input.json" % object_id, "w")
 		debug_file.write(json.dumps(objects, indent=2))
 		debug_file.close()
-
-
-
-# Get tunnels and bridges from the non-segmentet road network api
-# Note metering is relative to sequences, not super sequences
-
-
-def get_bridges_and_tunnels():
-
-	message("Merging tunnels and bridges...")
-
-	object_url = url.replace("/segmentert", "")
-
-	returned = 1
-	total_returned = 0
-	count_objects = 0
-
-	# Loop until no more pages to fetch
-
-	while returned > 0:
-		request = urllib2.Request(object_url, headers=request_headers)
-		file = urllib2.urlopen(request)
-		data = json.load(file)
-		file.close()
-
-		for sequence in data['objekter']:
-			for segment in sequence['veglenker']:
-				medium = ""
-				tags = {}
-				if "medium" in segment['geometri']:
-					medium = segment['geometri']['medium']
-				elif "medium" in segment:
-					medium = segment['medium']
-
-				if medium:
-					if medium in ["U", "W", "J"]:
-						tags['tunnel'] = "yes"
-						tags['layer'] = "-1"
-
-					elif medium == "B":
-						tags['tunnel'] = "building_passage"
-
-					elif medium == "L":
-						tags['bridge'] = "yes"
-						tags['layer'] = "1"
-
-				if tags:
-					count_objects += 1
-					if sequence['veglenkesekvensid'] in sequences:
-						for check_segment_id in sequences[ sequence['veglenkesekvensid'] ]:
-							check_segment = segments[ check_segment_id ]
-							margin = (check_segment['sequence_end'] - check_segment['sequence_start']) / check_segment['length'] * node_margin  # Meters
-							if segment['startposisjon'] <= check_segment['sequence_start'] + margin and check_segment['sequence_end'] - margin <= segment['sluttposisjon']:
-								check_segment['tags'].update(tags)
-#					else:
-#						message ("  *** No tunnel/bridge - %s-%i\n" % (sequence['veglenkesekvensid'], segment['veglenkenummer']))
-
-		returned = data['metadata']['returnert']
-		if "neste" in data['metadata']:
-			object_url= data['metadata']['neste']['href']
-		total_returned += returned
-
-	message ("  %i tunnels and bridges\n" % count_objects)
-
 
 
 # Generate tagging for road network segment and store in network data strucutre
@@ -1741,14 +1637,14 @@ def output_osm():
 
 	# First ouput all start/end nodes
 
-	for node_id, node in nodes.iteritems():
+	for node_id, node in iter(nodes.items()):
 		osm_id -= 1
 		osm_node = ET.Element("node", id=str(osm_id), action="modify", lat=str(node['point'][0]), lon=str(node['point'][1]))
 		osm_root.append(osm_node)
-		for key, value in node['tags'].iteritems():
+		for key, value in iter(node['tags'].items()):
 			tag_property (osm_node, key, value)
 		if debug:
-			for key, value in node['extras'].iteritems():
+			for key, value in iter(node['extras'].items()):
 				tag_property (osm_node, key, value)
 		node['osmid'] = osm_id
 
@@ -1765,10 +1661,10 @@ def output_osm():
 			osm_way = ET.Element("way", id=str(osm_id), action="modify")
 			osm_root.append(osm_way)
 
-			for key, value in segment['tags'].iteritems():
+			for key, value in iter(segment['tags'].items()):
 				tag_property (osm_way, key, value)
 			if debug or object_tags:
-				for key, value in segment['extras'].iteritems():
+				for key, value in iter(segment['extras'].items()):
 					if debug or object_tags and "VEGOBJEKT_" in key:
 						tag_property (osm_way, key, value)
 
@@ -1790,7 +1686,7 @@ def output_osm():
 					osm_id -= 1
 					osm_node = ET.Element("node", id=str(osm_id), action="modify", lat=str(node[0]), lon=str(node[1]))
 					osm_root.append(osm_node)
-					for key, value in node[2].iteritems():
+					for key, value in iter(node[2].items()):
 						tag_property (osm_node, key, value)
 
 					osm_way.append(ET.Element("nd", ref=str(osm_id)))
@@ -1805,20 +1701,20 @@ def output_osm():
 					osm_node = ET.Element("node", id=str(osm_id), action="modify", lat=str(node[0]), lon=str(node[1]))
 					osm_root.append(osm_node)
 
-					for key, value in node[2].iteritems():
+					for key, value in iter(node[2].items()):
 						tag_property (osm_node, key, value)
 
-					for key, value in segment['tags'].iteritems():
+					for key, value in iter(segment['tags'].items()):
 						tag_property (osm_node, key, value)
 
 					if debug or object_tags:
-						for key, value in segment['extras'].iteritems():
+						for key, value in iter(segment['extras'].items()):
 							if debug or object_tags and "VEGOBJEKT_" in key:
 								tag_property (osm_node, key, value)
 
 	# Output restriction relations
 
-	for restriction_id, restriction in turn_restrictions.iteritems():
+	for restriction_id, restriction in iter(turn_restrictions.items()):
 		osm_id -= 1
 		osm_relation = ET.Element("relation", id=str(osm_id))
 		tag_property (osm_relation, "type", "restriction")
@@ -1885,7 +1781,7 @@ def optimize_object_network ():
 		message ("Merging road object nodes ...\n")
 
 		i = 0
-		for segment_id, segment in segments.iteritems():
+		for segment_id, segment in iter(segments.items()):
 			if segment['geotype'] == "line":
 
 				i += 1
@@ -1895,7 +1791,7 @@ def optimize_object_network ():
 				start_node_found = False
 				end_node_found = False
 
-				for node_id, node in nodes.iteritems():
+				for node_id, node in iter(nodes.items()):
 					if node['point'] == start_node:
 						segment['start_node'] = node_id
 						node['ways'].add(segment_id)
@@ -1927,7 +1823,7 @@ def optimize_object_network ():
 	# Simple alternative, creating duplicate nodes, node merger to be done in JOSM
 
 	else:
-		for segment_id, segment in segments.iteritems():
+		for segment_id, segment in iter(segments.items()):
 			if segment['geotype'] == "line":
 				start_node = segment['geometry'][0][0:2]
 				end_node = segment['geometry'][-1][0:2]
@@ -1991,7 +1887,7 @@ def optimize_network ():
 
 	if longer_ways:
 
-		for sequence_id, sequence_segment in sequences.iteritems():
+		for sequence_id, sequence_segment in iter(sequences.items()):
 			for segment_id in sequence_segment[:]:
 				segment = segments[ segment_id ]
 
@@ -2035,7 +1931,7 @@ def optimize_network ():
 
 	# Copy node tags to node dict
 
-	for segment_id, segment in segments.iteritems():
+	for segment_id, segment in iter(segments.items()):
 		if segment['geotype'] == "line":
 			nodes[segment['start_node']]['tags'].update(segment['geometry'][0][2])
 			if segment['geotype'] == "line":
@@ -2053,7 +1949,7 @@ def optimize_network ():
 
 	if longer_ways:
 
-		for sequence_id, sequence_segments in sequences.iteritems():
+		for sequence_id, sequence_segments in iter(sequences.items()):
 			remaining_segments = copy.deepcopy(sequence_segments)
 
 			while remaining_segments:
@@ -2126,13 +2022,13 @@ def optimize_network ():
 				ways.append(new_way)
 
 	else:
-		for segment_id, segment in segments.iteritems():
+		for segment_id, segment in iter(segments.items()):
 			if segment['geotype'] == "line":
 				ways.append([segment_id])
 
 	# Add remaining points
 
-	for segment_id, segment in segments.iteritems():
+	for segment_id, segment in iter(segments.items()):
 		if segment['geotype'] == "point":
 			ways.append([segment_id])
 
@@ -2147,7 +2043,7 @@ def fix_network():
 
 	count_removed = 0
 
-	for segment_id in segments.keys():
+	for segment_id in list(segments.keys()):
 		segment = segments[ segment_id ]
 
 		if segment['length'] <= node_margin:
@@ -2195,7 +2091,6 @@ def get_data(url):
 
 	returned = 1
 	total_returned = 0
-	medium_detected = False
 
 	if debug:
 		debug_file = open("nvdb_%s_input.json" % function, "w")
@@ -2205,8 +2100,8 @@ def get_data(url):
 
 	while returned > 0:
 
-		request = urllib2.Request(url, headers=request_headers)
-		file = urllib2.urlopen(request)
+		request = urllib.request.Request(url, headers=request_headers)
+		file = urllib.request.urlopen(request)
 		data = json.load(file)
 		file.close()
 
@@ -2219,9 +2114,6 @@ def get_data(url):
 					process_road_object(record)
 				elif "vegnett" in url:  # and record['metadata']['startdato'] > "2020":  # u'måledato' in record and record[u'måledato'] > "2020":
 					process_road_network(record)
-				if "medium" in record['geometri'] and not medium_detected:
-					message ("\n   *** MEDIUM DETECTED ***\n\n")
-					medium_detected = True
 
 		returned = data['metadata']['returnert']
 		url = data['metadata']['neste']['href']
@@ -2243,8 +2135,8 @@ def get_data(url):
 
 def load_data (url):
 
-	request = urllib2.Request(url, headers=request_headers)
-	file = urllib2.urlopen(request)
+	request = urllib.request.Request(url, headers=request_headers)
+	file = urllib.request.urlopen(request)
 	data = json.load(file)
 	file.close()
 
@@ -2260,10 +2152,10 @@ def get_municipality (parameter):
 		return parameter
 
 	else:
-		parameter = parameter.decode("utf-8")
+		parameter = parameter
 		found_id = ""
 		duplicate = False
-		for mun_id, mun_name in municipalities.iteritems():
+		for mun_id, mun_name in iter(municipalities.items()):
 			if parameter.lower() == mun_name.lower():
 				return mun_id
 			elif parameter.lower() in mun_name.lower():
@@ -2287,10 +2179,12 @@ if __name__ == '__main__':
 
 	# Get database status
 
-	data = load_data(server + "status")
+	data_status = load_data(server + "status")
+	api_status = load_data(server + "status/versjoner")
 	message ("Server:         %s\n" % server)
-	message ("Data catalogue: %s, %s\n" % (data['datagrunnlag']['datakatalog']['versjon'], data['datagrunnlag']['datakatalog']['dato']))
-	message ("Last update:    %s\n\n" % data['datagrunnlag']['sist_oppdatert'][:10])
+	message ("API:            v%s, %s\n" % (api_status['nvdbapi-v3'][-1]['version'], api_status['nvdbapi-v3'][-1]['installDate']))
+	message ("Data catalogue: v%s, %s\n" % (data_status['datagrunnlag']['datakatalog']['versjon'], data_status['datagrunnlag']['datakatalog']['dato']))
+	message ("Last update:    %s\n\n" % data_status['datagrunnlag']['sist_oppdatert'][:10])
 
 	# Get municipalities and road object types
 
@@ -2410,7 +2304,6 @@ if __name__ == '__main__':
 
 	if function == "vegnett":
 		fix_network()
-		get_bridges_and_tunnels()
 
 	# Read objects
 
@@ -2430,7 +2323,7 @@ if __name__ == '__main__':
 		# Ways
 		get_road_object ("581")  # Tunnel node - 1st pass
 		get_road_object ("67")   # Tunnel ways - 2nd pass
-		get_road_object ("60")   # Bridges - uferdig
+		get_road_object ("60")   # Bridges
 		get_road_object ("595")  # Motorway, motorroad
 		get_road_object ("538")  # Street names
 		get_road_object ("105")  # Maxspeeds
