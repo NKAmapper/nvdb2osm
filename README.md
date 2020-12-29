@@ -1,7 +1,7 @@
 # nvdb2osm
 Converts NVDB highway data to OSM file.
 
-To replace [elveg2osm](https://github.com/gomyhr/elveg2osm). Supports v3 of NVDB (2020 onward) and more features/tags. NVDB v3 and nvdb2osm is under development. Testing and feedback encouraged.
+To replace [elveg2osm](https://github.com/gomyhr/elveg2osm). Supports v3 of NVDB (2020 onward) and more features/tags. Testing and feedback encouraged.
 
 ### Usage
 1. **nvdb2osm -vegnett "kommune"**
@@ -42,8 +42,7 @@ Optional arguments:
 ### Example OSM files
 
 * Generated OSM files for a few municipalities in [this folder](https://www.jottacloud.com/s/059f4e21889c60d4e4aaa64cc857322b134).
-* You may generate more files using Python 2.7. No external dependencies beyond standard Python.
-* Program runs off standard MacOS out of the box, without any further installations required.
+* You may generate more files using Python 3. No external dependencies beyond standard Python.
 
 ### Supported features
 
@@ -54,7 +53,7 @@ Optional arguments:
   - Roundabouts.
   - Turn:lanes (may need to be adjusted manually; enable "Lane and road attributes" style in JOSM).
   - PSV lanes.
-  - Tunnels and bridges (temporary fix due to NVDB API limitations).
+  - Tunnels and bridges.
 * The following additional road objects from NVDB at the way level are supported:
   - Motorways and motorroads.
   - Tertiary roads based on NVDB functional road class (maintained in NVDB only in a few municipalities, e.g. Oslo).
@@ -91,6 +90,10 @@ Optional arguments:
 * Road object ways currently have duplicate nodes at some intersections. Duplicates may be discovered and fixed automatically with the JOSM validator.
 * NVDB contains mistakes. You may report mistakes at [Fiksvegdata](https://fiksvegdata.opentns.org/). Rapid response.
 
+### Changelog
+
+* 1.0: Code converted to Python 3. NVDB api now supports tunnels and bridges for segments.
+
 ### References
 
 * [vegkart.no v3](http://vegkart.no) - Statens Vegvesen: vegkart.no (new v3 version).
@@ -98,3 +101,4 @@ Optional arguments:
 * [NVDB api documentation](https://nvdbapiles-v3.atlas.vegvesen.no/dokumentasjon/) - Description of API parameters.
 * [Håndbok V830](https://www.vegvesen.no/_attachment/61505) - Statens Vegvesen: Nasjonalt vegreferansesystem.
 * [Fiksvegdata](https://fiksvegdata.opentns.org/) - For reporting mistakes in NVDB.
+* [highway_merge.py](https://github.com/osmno/highway_merge) - Python tool for merging NVDB files with existing highways in OSM.
