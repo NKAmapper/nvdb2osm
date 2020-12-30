@@ -1857,7 +1857,7 @@ def find_connected_segment (segment_id):
 
 			for check_segment_id in nodes[ last_node_id ]['ways']:
 				check_segment = segments[ check_segment_id ]
-				if check_segment_id not in checked_segments and checked_segment['highway'] == last_segment['highway']:
+				if check_segment_id not in checked_segments and check_segment['highway'] == last_segment['highway']:
 					if check_segment['connection']:
 						if last_node_id == check_segment['start_node']:
 							last_node_id = check_segment['end_node']
