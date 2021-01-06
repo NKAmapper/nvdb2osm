@@ -1831,51 +1831,6 @@ def optimize_object_network ():
 				segment['end_node'] = create_new_node ("", end_node, set([segment_id]))
 
 
-
-# Find first normal segment belonging to 'connection' segment and return it's id
-# Not used but kept for later
-
-def find_connected_segment (segment_id):
-
-	segment = segments[segment_id]
-	message ("\r%s" % segment_id)
-
-	# First check ways connected backwards, then forwards if necessary
-
-	for node_id in [segment['start_node'], segment['end_node']]:
-		last_segment_id = segment_id
-		last_segment = segment
-		last_node_id = node_id
-		checked_segments = [ last_segment_id ]
-
-		check_next = True
-		while check_next:
-			check_next = False  # Default
-
-			if len(nodes[ last_node_id ]['ways']) != 2:
-				continue
-
-			for check_segment_id in nodes[ last_node_id ]['ways']:
-				check_segment = segments[ check_segment_id ]
-				if check_segment_id not in checked_segments and checked_segment['highway'] == last_segment['highway']:
-					if check_segment['connection']:
-						if last_node_id == check_segment['start_node']:
-							last_node_id = check_segment['end_node']
-						else:
-							last_node_id = check_segment['start_node']
-						check_next = True
-					last_segment_id = check_segment_id
-					last_segment = check_segment
-					checked_segments.append(check_segment_id)
-					break
-
-		if last_segment_id != segment_id and not last_segment['connection']:
-			return last_segment_id
-
-	return None
-
-
-
 # Prepares road network and road objects for output
 # 1) Consolidates tagging at intersection nodes
 # 2) Simplifies network by combining consecutive segments into longer ways
