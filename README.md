@@ -35,6 +35,7 @@ To replace [elveg2osm](https://github.com/gomyhr/elveg2osm). Supports v3 of NVDB
 
 Optional arguments:
 
+* `-date "dato"` - Only ouput highways with coordinates provided during given date, e.g. "2020-08" for August 2020, or "2020" for full year.
 * `-debug` - Get detailed information from NVDB
 * `-segmentert` - Get segmented road network, i.e. road segments are not combined into longer ways.
 * `"filnavn.osm"` - Set output filename (must end with ".osm")
@@ -92,7 +93,11 @@ Optional arguments:
 
 ### Changelog
 
-* 1.0: Code converted to Python 3. NVDB api now supports tunnels and bridges for segments.
+* 1.1:
+  - Highway output grouped by road reference number, which produces longer ways.
+  - New optional command `-date` which only ouputs highways with coordinates from the given date(span)
+* 1.0:
+  - Code converted to Python 3. NVDB api now supports tunnels and bridges for segments.
 
 ### References
 
