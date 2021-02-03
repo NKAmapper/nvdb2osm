@@ -107,3 +107,6 @@ Optional arguments:
 * [Håndbok V830](https://www.vegvesen.no/_attachment/61505) - Statens Vegvesen: Nasjonalt vegreferansesystem.
 * [Fiksvegdata](https://fiksvegdata.opentns.org/) - For reporting mistakes in NVDB.
 * [highway_merge.py](https://github.com/osmno/highway_merge) - Python tool for merging NVDB files with existing highways in OSM.
+* [Road import plan](https://wiki.openstreetmap.org/wiki/Import/Catalogue/Road_import_(Norway)) - OpenStreetMap import wiki
+* [Road import progress](https://wiki.openstreetmap.org/wiki/Import/Catalogue/Road_import_(Norway)/Progress) - OpenStreetMap progress page for NVDB/Elveg import
+* [Veileder Elveg-import](https://wiki.openstreetmap.org/wiki/No:Veileder_Elveg-import) - OpenSteetMap guide wiki for the import process
