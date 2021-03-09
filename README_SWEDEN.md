@@ -1,5 +1,7 @@
 # nvdbswe2osm
 
+Converts NVDB in Sweden to OSM file with tagging.
+
 ### Usage
 
 1. Order the relevant municipality data from [Lastkajen](https://lastkajen.trafikverket.se/) at Trafikverket.
@@ -24,7 +26,13 @@
 
 * The current implementation is for testing.
 * Some NVDB attributes are currently not supported, for example not all access restrictions are supported.
-* Highways are combined into longer ways. There are three different algorithms to choose from in the program.
+* Highways are combined into longer ways. There are three different methods to choose from in the program.
 * Highways are split at sharp turns.
 * Way polygons are simplified with a factor of 0.20 meters.
 * Most municipalities are generated in a few seconds. The largest municipalities in Sweden run in a couple of minutes.
+
+
+### References
+
+* [Trafikverket NVDB](https://www.nvdb.se/sv)
+* [Trafikverket Lastkajen](https://lastkajen.trafikverket.se/)
