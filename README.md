@@ -1,7 +1,9 @@
 # nvdb2osm
 Converts NVDB highway data to OSM file.
 
-To replace [elveg2osm](https://github.com/gomyhr/elveg2osm). Supports v3 of NVDB (2020 onward) and more features/tags. Testing and feedback encouraged.
+To replace [elveg2osm](https://github.com/gomyhr/elveg2osm). Supports v3 of NVDB (2020 onward) and more features/tags.
+
+NVDB conversion for Sweden is [here](https://github.com/NKAmapper/nvdb2osm/blob/master/README_SWEDEN.md). 
 
 ### Usage
 1. **nvdb2osm -vegnett "kommune"**
