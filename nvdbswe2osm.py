@@ -16,7 +16,7 @@ import time
 from xml.etree import ElementTree as ET
 
 
-version = "0.3.0"
+version = "0.4.0"
 
 debug = False				# Add extra tags for debugging/testing
 
@@ -385,6 +385,21 @@ def osm_tags (segment):
 		tags['tunnel'] = "yes"
 		tags['layer'] = "-1"
 
+	# Check oneway, used for other tags later
+
+	if prop['Förbjuden färdriktning(B)']:
+		tags['oneway'] = "yes"
+		oneway = "forward"
+	elif prop['Förbjuden färdriktning(F)']:
+		tags['oneway'] = "yes"
+		oneway = "backward"
+		reverse_segment(segment, False)  # Reverse way nodes
+		if debug:
+			segment['properties']['REVERSE'] = 'yes'  # debug
+	else:
+		oneway = ""
+
+
 	# 4. Tag cycleways/footways
 
 	if prop['Vägtrafiknät/Nättyp'] in [2, 4]:  # 2: Cycleway, 4: footway
@@ -435,8 +450,10 @@ def osm_tags (segment):
 				tags['footway'] = tags['cycleway']
 				del tags['cycleway']
 
-		# Include street name only for pedestrian highway
-		if prop['Gatunamn/Namn'] and "highway" in tags and tags['highway'] == "pedestrian":
+		# Include street name only for pedestrian highway or if only used by cycleway/footway
+		if prop['Gatunamn/Namn'] and ("highway" in tags and tags['highway'] == "pedestrian" or \
+				"stig" in prop['Gatunamn/Namn'].lower() or "gång" in prop['Gatunamn/Namn'].lower() or "park" in prop['Gatunamn/Namn'].lower() or \
+				prop['Gatunamn/Namn'].strip() not in street_names):
 			tags['name'] = prop['Gatunamn/Namn'].strip()
 
 		if prop['GCM-belyst'] and "highway" in tags:  # Street light
@@ -481,15 +498,22 @@ def osm_tags (segment):
 		elif prop['Funktionell vägklass/Klass'] and  prop['Funktionell vägklass/Klass'] < 6:  # Functional road class
 			tags['highway'] = "tertiary"
 
-		# Private roads are tagged as residential/uncalssified if they have a road number or if functional class is < 9.
-		# Functional class 9 is tagged as service.
+		# Private roads are tagged as residential/unclassified if they meet certain criteria (see below).
+		# Otherwise tagged as service.
 
 		elif prop['Väghållare/Väghållartyp'] == 3:  # Private road owner
-			if prop['Funktionell vägklass/Klass'] and prop['Funktionell vägklass/Klass'] < 9 or prop['Driftbidrag statligt/Vägnr']: # Alternative: < 8
+
+			if prop['Funktionell vägklass/Klass'] and prop['Funktionell vägklass/Klass'] < 8 or \
+					prop['Driftbidrag statligt/Vägnr'] or \
+					prop['Funktionell vägklass/Klass'] == 8 and prop['Tillgänglighet/Tillgänglighetsklass'] not in [3,4]:
+
 				if prop['Tättbebyggt område']:
 					tags['highway'] = "residential"  # Residential for urban areas
 				else:
 					tags['highway'] = "unclassified"  # Unclassified for rural areas
+
+#			elif prop['Tillgänglighet/Tillgänglighetsklass'] == 4:
+#				tags['highway'] = "track"
 			else:
 				tags['highway'] = "service"  # Service tag for functional road class 9
 		else:
@@ -511,20 +535,6 @@ def osm_tags (segment):
 			prop['Leveranskvalitet DoU 2017/Leveranskvalitetsklass DoU 2017'] < 4 and \
 			prop['Cirkulationsplats(F)'] is None and prop['Circulationsplats(B)'] is None:
 		tags['highway'] += "_link"
-
-	# Check oneway, used for other tags later
-
-	if prop['Forbjuden färdriktning(B)']:
-		tags['oneway'] = "yes"
-		oneway = "forward"
-	elif prop['Forbjuden färdriktning(F)']:
-		tags['oneway'] = "yes"  # "-1"
-		oneway = "backward"
-		reverse_segment(segment, False)  # Reverse way nodes
-		if debug:
-			segment['properties']['REVERSE'] = 'yes'  # debug
-	else:
-		oneway = ""
 
 	# Highway ref
 
@@ -569,7 +579,7 @@ def osm_tags (segment):
 	tag_direction(tags, "maxspeed", None, prop['Hastighetsgräns/Högsta tillåtna hastighet(F)'], \
 		prop['Hastighetsgräns/Högsta tillåtna hastighet(B)'], oneway)  # Maxspeed (exclude on service roads?, not signed?)
 
-#	tag_direction(tags, "motor_vehicle", "no", prop['Forbud mot trafik(F)'], prop['Forbud mot trafik(B)'], oneway)  # Access
+#	tag_direction(tags, "motor_vehicle", "no", prop['Förbud mot trafik(F)'], prop['Förbud mot trafik(B)'], oneway)  # Access
 
 	tag_direction(tags, "overtaking", "no", prop['Omkörningsförbud(F)'], prop['Omkörningsförbud(F)'], oneway)  # Overtaking
 
@@ -708,7 +718,7 @@ def tag_network():
 
 	message ("Converting tags ... ")
 
-	global bridges  #, network
+	global bridges, street_names
 
 	for segment in segments['features']:
 		segment['tags'] = {}
@@ -781,14 +791,35 @@ def tag_network():
 		else:
 			bridges[ bridge_id ]['tag'] = "bridge"  # Catch all
 
-	message ("%i bridge/tunnel structures " % len(bridges))
+	message ("\n\t%i bridge/tunnel structures\n" % len(bridges))
+
+
+	# Build set of street names. Used for cycleways later.
+	# Also get urban/rural statistics. 
+
+	street_names = set()
+	urban_streets = 0
+	rural_streets = 0
+
+	for segment in segments['features']:
+		if "Vägtrafiknät/Nättyp" in segment['properties'] and segment['properties']['Vägtrafiknät/Nättyp'] == 1:
+			if "Gatunamn/Namn" in segment['properties'] and segment['properties']['Gatunamn/Namn'].strip():
+				street_names.add(segment['properties']['Gatunamn/Namn'].strip())
+
+			if "Tättbebyggt område" in segment['properties']:
+				urban_streets += 1
+			else:
+				rural_streets += 1
+
+	message ("\t%i street names\n" % len(street_names))
+	message ("\t%i %% urban vs rural streets\n" % (100 * urban_streets / (rural_streets + urban_streets)))
 
 	# Loop all features and tag
 
 	for segment in segments['features']:
 		segment['tags'].update(osm_tags(segment))
 
-	message ("%i tagged nodes\n" % len(nodes))
+	message ("\t%i tagged nodes\n" % len(nodes))
 
 
 
@@ -1368,7 +1399,7 @@ if __name__ == '__main__':
 	# Load all ways
 
 	start_time = time.time()
-	message ("\nConverting Swedish NVDB tags\n")
+	message ("\nConverting Swedish NVDB to OSM\n\n")
 	
 	if len(sys.argv) > 1:
 		filename = sys.argv[1]
@@ -1389,7 +1420,6 @@ if __name__ == '__main__':
 	load_file(filename)
 	tag_network()
 	simplify_network(simplify_method)  # Options: recursive, route or refname
-
 	output_network(filename)
 
 	message ("Time: %i seconds (%i segments per second)\n\n" % ((time.time() - start_time), (len(segments['features']) / (time.time() - start_time))))
