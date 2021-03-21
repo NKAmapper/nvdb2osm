@@ -16,7 +16,7 @@ import time
 from xml.etree import ElementTree as ET
 
 
-version = "0.4.0"
+version = "0.4.1"
 
 debug = False				# Add extra tags for debugging/testing
 
@@ -52,7 +52,7 @@ nvdb_attributes = {
 	'Barig_504':					'Bärighet/Bärighetsklass vinterperiod',
 	'Namn_457':						'C-Cykelled/Namn',
 	'C_Cykelled':					'C-Cykelled',
-	'C_Rekommenderad_bilvag_for_c':	'C-Rekommenderad_bilväg for cykel',
+	'C_Rekommenderad_bilvag_for_c':	'C-Rekommenderad bilväg for cykel',
 	'F_Cirkulationsplats':			'Cirkulationsplats(F)',
 	'B_Cirkulationsplats':			'Circulationsplats(B)',
 	'Vagde_10379':					'Driftbidrag statligt/Vägdelsnr',
@@ -407,8 +407,8 @@ def osm_tags (segment):
 		cycleway = {
 			1: {'highway': 'cycleway'},		# cykelbana
 			2: {'highway': 'cycleway'},		# cykelfält
-			3: {'highway': 'cycleway', 'cycleway': 'crossing', 'segregated': 'yes'},	# cykelöverfart i plan/cykelpassage
-			4: {'highway': 'footway', 'footway': 'crossing'},	# övergångsställe
+			3: {'highway': 'cycleway'},  # 'cycleway': 'crossing', 'segregated': 'yes'},	# cykelöverfart i plan/cykelpassage
+			4: {'highway': 'footway'},  # 'footway': 'crossing'},	# övergångsställe
 			5: {'highway': 'cycleway'},		# gatupassage utan utmärkning
 			8: {'highway': 'cycleway'},		# koppling till annat
 			9: {'highway': 'cycleway'},		# annan cykelbar förbindelse
@@ -430,7 +430,7 @@ def osm_tags (segment):
 			25: {'highway': 'footway'},		# kaj
 			26: {'highway': 'pedestrian'},	# öppen yta
 			27: {'route': 'ferry', 'foot': 'yes', 'motor_vehicle': 'no'},	# färja
-			28: {'highway': 'cycleway', 'cycleway': 'crossing', 'segregated': 'yes'},	# cykelpassage och övergångsställe
+			28: {'highway': 'cycleway'},  # 'cycleway': 'crossing', 'segregated': 'yes'},	# cykelpassage och övergångsställe
 			29: {'highway': 'cycleway', 'foot': 'no'}	# cykelbana ej lämplig för gång
 		}
 
@@ -503,9 +503,9 @@ def osm_tags (segment):
 
 		elif prop['Väghållare/Väghållartyp'] == 3:  # Private road owner
 
-			if prop['Funktionell vägklass/Klass'] and prop['Funktionell vägklass/Klass'] < 8 or \
-					prop['Driftbidrag statligt/Vägnr'] or \
-					prop['Funktionell vägklass/Klass'] == 8 and prop['Tillgänglighet/Tillgänglighetsklass'] not in [3,4]:
+#			if prop['Funktionell vägklass/Klass'] and prop['Funktionell vägklass/Klass'] < 9 or prop['Driftbidrag statligt/Vägnr']:
+			if prop['Funktionell vägklass/Klass'] and prop['Funktionell vägklass/Klass'] < 8 or prop['Driftbidrag statligt/Vägnr'] \
+					or prop['Funktionell vägklass/Klass'] == 8 and not prop['Tillgänglighet/Tillgänglighetsklass']: # not in [3,4]:
 
 				if prop['Tättbebyggt område']:
 					tags['highway'] = "residential"  # Residential for urban areas
@@ -513,7 +513,9 @@ def osm_tags (segment):
 					tags['highway'] = "unclassified"  # Unclassified for rural areas
 
 #			elif prop['Tillgänglighet/Tillgänglighetsklass'] == 4:
-#				tags['highway'] = "track"
+			elif prop['Tillgänglighet/Tillgänglighetsklass'] and not prop['Gatunamn/Namn'] and prop['Slitlager/Slitlagertyp'] != 1:
+#					and (prop['Funktionell vägklass/Klass'] == 9 or prop['Tillgänglighet/Tillgänglighetsklass'] in [3,4]):
+				tags['highway'] = "track"
 			else:
 				tags['highway'] = "service"  # Service tag for functional road class 9
 		else:
@@ -576,8 +578,10 @@ def osm_tags (segment):
 
 	tag_direction(tags, "junction", "roundabout", prop['Cirkulationsplats(F)'], prop['Circulationsplats(B)'], oneway)  # Roundabout
 
-	tag_direction(tags, "maxspeed", None, prop['Hastighetsgräns/Högsta tillåtna hastighet(F)'], \
-		prop['Hastighetsgräns/Högsta tillåtna hastighet(B)'], oneway)  # Maxspeed (exclude on service roads?, not signed?)
+	if not (tags['highway'] == "track" and prop['Hastighetsgräns/Högsta tillåtna hastighet(F)'] == 70 and 
+			prop['Hastighetsgräns/Högsta tillåtna hastighet(B)'] == 70):
+		tag_direction(tags, "maxspeed", None, prop['Hastighetsgräns/Högsta tillåtna hastighet(F)'], \
+			prop['Hastighetsgräns/Högsta tillåtna hastighet(B)'], oneway)  # Maxspeed (exclude on service roads?, not signed?)
 
 #	tag_direction(tags, "motor_vehicle", "no", prop['Förbud mot trafik(F)'], prop['Förbud mot trafik(B)'], oneway)  # Access
 
@@ -608,13 +612,16 @@ def osm_tags (segment):
 	if prop['Vägnummer/Huvudnummer']:  # Priority road
 		tags['priority_road'] = "designated"
 
-	if prop['C-Rekommenderad_bilväg for cykel']:  # Highway recommended for bikes
+	if prop['C-Rekommenderad bilväg for cykel']:  # Highway recommended for bikes
 		tags['bicycle'] = "designated"
 
 	# Names
 
-	if prop['Gatunamn/Namn'] and not prop['Cirkulationsplats(F)'] and not prop['Circulationsplats(B)']:  # Street name
-		tags['name'] = prop['Gatunamn/Namn'].strip()
+	if not prop['Cirkulationsplats(F)'] and not prop['Circulationsplats(B)']:  # Street name
+		if prop['Gatunamn/Namn']:
+			tags['name'] = prop['Gatunamn/Namn'].strip()
+		elif prop['Övrigt vägnamn/Namn']:
+			tags['name'] = prop['Övrigt vägnamn/Namn'].strip()
 
 	if prop['Övrigt vägnamn/Namn']:  # Bridge/tunnel name
 		if "tunnel" in tags and "tunneln" in prop['Övrigt vägnamn/Namn']:
@@ -1079,7 +1086,7 @@ def simplify_network_recursive(groups):
 					message ("Double: %s\n" % str(sequence))
 				remaining_segments.remove(segment)
 
-			message ("\r%i " % count)
+			message ("\r\t%i " % count)
 			count -= len(sequence)
 
 	# Check if any segments in a sequence needs to be reversed to get all segments in sequence in the same direction
@@ -1112,7 +1119,7 @@ def simplify_network_linear(groups):
 
 	for group_id, group_segments in iter(groups.items()):
 
-		message ("\r%i " % count)
+		message ("\r\t%i " % count)
 		count -= 1
 
 		remaining_segments = copy.deepcopy(group_segments)
@@ -1260,7 +1267,7 @@ def simplify_network(option):
 		for segment in segments['features']:
 			ways.append([segment])
 
-	message ("\rSimplified into %i ways\n" % len(ways))
+	message ("\r\tSimplified into %i ways\n" % len(ways))
 
 
 
@@ -1347,7 +1354,7 @@ def output_network(filename):
 	osm_tree = ET.ElementTree(osm_root)
 	osm_tree.write(filename, encoding="utf-8", method="xml", xml_declaration=True)
 
-	message ("\nSaved %i elements in file '%s'\n" % (count, filename))
+	message ("\n\tSaved %i elements in file '%s'\n" % (count, filename))
 
 
 
@@ -1388,7 +1395,7 @@ def load_file(filename):
 		segment['start_node'] = (segment['geometry']['coordinates'][0][0][0], segment['geometry']['coordinates'][0][0][1])  # tuple
 		segment['end_node'] = (segment['geometry']['coordinates'][0][-1][0], segment['geometry']['coordinates'][0][-1][1])  # tuple
 
-	message ("%i highway segments\n" % len(segments['features']))
+	message ("\n\t%i highway segments loaded\n" % len(segments['features']))
 
 
 
