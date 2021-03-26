@@ -16,7 +16,7 @@ import time
 from xml.etree import ElementTree as ET
 
 
-version = "0.4.1"
+version = "0.5.0"
 
 debug = False				# Add extra tags for debugging/testing
 
@@ -504,7 +504,7 @@ def osm_tags (segment):
 		elif prop['Väghållare/Väghållartyp'] == 3:  # Private road owner
 
 #			if prop['Funktionell vägklass/Klass'] and prop['Funktionell vägklass/Klass'] < 9 or prop['Driftbidrag statligt/Vägnr']:
-			if prop['Funktionell vägklass/Klass'] and prop['Funktionell vägklass/Klass'] < 8 or prop['Driftbidrag statligt/Vägnr'] \
+			if prop['Funktionell vägklass/Klass'] and prop['Funktionell vägklass/Klass'] < 8 or prop['Driftbidrag statligt/Vägnr']:
 					or prop['Funktionell vägklass/Klass'] == 8 and not prop['Tillgänglighet/Tillgänglighetsklass']: # not in [3,4]:
 
 				if prop['Tättbebyggt område']:
@@ -970,6 +970,83 @@ def simplify_polygon(polygon, epsilon):
 
 
 
+# Travel recursively in highway network to identify connected service highways which are not connected to anythin but tracks.
+# Then retag to highway=track.
+# Current limitation: If a group of service roads are not connected to anything at all, it will be retagged to track.
+# Paramters:
+# - segment: To check.
+# - tested_segments: Already tested segments, do not traverse.
+# - tested_junctions: Already tested junctions do not traverse.
+# - remaining_segments: Select test segments from this list (only service roads).
+# Returns True if no connected service roads are connected to anything else than tracks.
+# - Also updates tested_segments and tested_junctions
+
+def connected_track(segment, tested_segments, tested_junctions, remaining_segments):
+
+	# Tested segments are accumulating as we traverse
+	if segment not in tested_segments:
+		tested_segments.append(segment)
+
+	track = True
+
+	# Test segments connected to both start and end nodes of segment.
+	for node in [ segment['start_node'] , segment['end_node'] ]:
+		if node not in tested_junctions:
+			tested_junctions.append(node)
+
+			# Iterate connected ways at junction. Check segments starting from next junction node.
+			for test_segment in junctions[ node ]['segments']:
+
+				if "highway" in test_segment['tags'] and test_segment['tags']['highway'] not in ["service", "track"]:
+					track = False
+
+				# New segment must not already have been used and must be available
+				if test_segment not in tested_segments and test_segment in remaining_segments:
+
+					if not connected_track(test_segment, tested_segments, tested_junctions, remaining_segments):
+						track = False
+	
+	return track
+
+
+
+# Tests all connected groups of service roads to check if they could be retagged to track.
+# Retag to track only if group of service roads are not connected to anything else but track.
+# This function may be called after junctions have been created.
+
+def tag_isolated_tracks():
+
+	# Build list of service ways; candidates for track
+	remaining_segments = []
+	for segment in segments['features']:
+		if "highway" in segment['tags'] and segment['tags']['highway'] == "service":
+			remaining_segments.append(segment)
+
+	count = 0
+
+	# Reapeat checking groups of connected service roads until all segments have been tested
+	while remaining_segments:
+		segment = remaining_segments[0]
+		tested_segments = []
+		tested_junctions = []
+
+		# Check if service roads are isolated
+		if connected_track(segment, tested_segments, tested_junctions, remaining_segments):
+
+			# Change highway=service to track
+			for segment in tested_segments:
+				if segment['tags']['highway'] == "service":
+					segment['tags']['highway'] = "track"
+					segment['properties']['TRACK'] = "yes"
+					count += 1
+
+		for segment in tested_segments:
+			remaining_segments.remove(segment)
+
+	message ("\r\t%i isolated service roads retagged to track\n" % count)
+
+
+
 # Travel recursively in highway network to identify longest connected segments with identical tags.
 # Will build long ways, however with no logical grouping beyond the highway tags.
 # Paramters:
@@ -1009,8 +1086,8 @@ def connected_way(segment, node, test_way, test_junctions, remaining_segments):
 			angle = compute_junction_angle(segment, test_segment)
 
 			if abs(angle) < angle_margin:  # Avoid sharp angels
-				length, sequence, used_junctions = connected_way(test_segment, next_node, test_way + [test_segment], test_junctions + [next_node], remaining_segments)
-
+				length, sequence, used_junctions = connected_way(test_segment, next_node, test_way + [test_segment], \
+																	test_junctions + [next_node], remaining_segments)
 				if length > best_length:  # Keep best segment
 					best_length = length
 					best_sequence = sequence
@@ -1066,14 +1143,12 @@ def simplify_network_recursive(groups):
 			segment = remaining_segments[0]
 
 			# First build sequence forward
-			length_forward, sequence_forward, used_junctions = connected_way(segment, segment['start_node'], [ segment ], [], remaining_segments)
-			if not sequence_forward:
-				sys.exit ("Error - empty sequence forward\n")
+			length_forward, sequence_forward, used_junctions = \
+				connected_way(segment, segment['start_node'], [ segment ], [], remaining_segments)
 
 			# Then try to building connecgted sequence backward
-			length_backward, sequence_backward, used_junctions = connected_way(segment, segment['end_node'], sequence_forward, used_junctions, remaining_segments)
-			if not sequence_backward:
-				sys.exit ("Error - empty sequence backward\n")
+			length_backward, sequence_backward, used_junctions = \
+				connected_way(segment, segment['end_node'], sequence_forward, used_junctions, remaining_segments)
 
 			# Add the two
 			sequence_backward.reverse()
@@ -1082,8 +1157,6 @@ def simplify_network_recursive(groups):
 			# Add to collection of (longer) ways. May be only one segment if no match found
 			ways.append(sequence)
 			for segment in sequence:
-				if segment not in remaining_segments:
-					message ("Double: %s\n" % str(sequence))
 				remaining_segments.remove(segment)
 
 			message ("\r\t%i " % count)
@@ -1222,6 +1295,8 @@ def simplify_network(option):
 			}
 		else:
 			junctions[ segment['end_node'] ]['segments'].append(segment)
+
+	tag_isolated_tracks()
 
 	# Copy tags and properties from nodes to junctions
 
@@ -1416,6 +1491,11 @@ if __name__ == '__main__':
 	if "-segment" in sys.argv:
 		segment_output = True
 		simplify_method = "segment"
+
+	if "-debug" in sys.argv:
+		debug = True
+		segment_output = True
+		simplify_method = "segment"	
 
 	segments = []	# To store all highway segments
 	nodes = []		# To store all tagged nodes
