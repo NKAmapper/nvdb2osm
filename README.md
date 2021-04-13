@@ -42,10 +42,10 @@ Optional arguments:
 * `-segmentert` - Get segmented road network, i.e. road segments are not combined into longer ways.
 * `"filnavn.osm"` - Set output filename (must end with ".osm")
 
-### Example OSM files
+### Generated OSM files
 
-* Generated OSM files for a few municipalities in [this folder](https://www.jottacloud.com/s/059f4e21889c60d4e4aaa64cc857322b134).
-* You may generate more files using Python 3. No external dependencies beyond standard Python.
+* Generated OSM files for all Norwegian municipalities in [this folder](https://www.jottacloud.com/s/059f4e21889c60d4e4aaa64cc857322b134).
+* You may generate updated files using Python 3. No external dependencies beyond standard Python.
 
 ### Supported features
 
