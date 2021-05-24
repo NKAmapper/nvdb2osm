@@ -107,6 +107,7 @@ Optional arguments:
 * [NVDB data catalogue](https://labs.vegdata.no/nvdb-datakatalog/) - All road objects by code and name.
 * [NVDB api documentation](https://nvdbapiles-v3.atlas.vegvesen.no/dokumentasjon/) - Description of API parameters.
 * [Håndbok V830](https://www.vegvesen.no/_attachment/61505) - Statens Vegvesen: Nasjonalt vegreferansesystem.
+* [Veileder for ajourføring av veg](https://kartverket.no/globalassets/geodataarbeid/forvaltning-drift-og-vedlikehold/veileder_veitema_del1.pdf) - Kartverket editing guidelines.
 * [Fiksvegdata](https://fiksvegdata.opentns.org/) - For reporting mistakes in NVDB.
 * [highway_merge.py](https://github.com/osmno/highway_merge) - Python tool for merging NVDB files with existing highways in OSM.
 * [Road import plan](https://wiki.openstreetmap.org/wiki/Import/Catalogue/Road_import_(Norway)) - OpenStreetMap import wiki
