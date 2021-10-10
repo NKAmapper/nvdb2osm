@@ -7,12 +7,12 @@ NVDB conversion for Sweden is [here](https://github.com/NKAmapper/nvdb2osm/blob/
 
 ### Usage
 1. **nvdb2osm -vegnett "kommune"**
-   - Produces OSM file with road network for a given municipality (name or 4 digit municipality code).
+   - Produces OSM file with road network for a given municipality (name or 4 digit municipality code), or "Norway" for all municipalities.
    - Example: `nvdb2osm -vegnett 4601`for the road network of Bergen.
 
 2. **nvdb2osm -vegobjekt "vegobjektkode" ["kommune"]**
    - Produces OSM file with all road objects of a given [type](http://labs.vegdata.no/nvdb-datakatalog/) (name or 2-3 digit object code).
-   - Optionally within a given municipality (4 digit municipality code), else for the entire country of Norway.
+   - Optionally within a given municipality (name or 4 digit municipality code), else for the entire country of Norway.
    - Example: `nvdb2osm -vegobjekt 103 0301` for all traffic calming/speed bumps in Oslo.
 
 3. **nvdb2osm -vegref "vegreferanse"**
@@ -95,6 +95,14 @@ Optional arguments:
 
 ### Changelog
 
+* 1.2:
+  - Simplify highway geometry, Ramer-Douglas-Peucker algorithm with factor 0.2.
+  - Option to generate files in one go for all municipalities in Norway (type "Norge" instead of municipality name).
+  - Highway=unclassified for private roads unless Sideveg=Ja in NVDB.
+  - Support primart/secondary in Oslo (hack).
+  - Keep short segments of private roads together, unless municipality road number exists in NVDB.
+  - Date filter now checks NVDB start date (previously checked metering date).
+  - Prettify XML output.
 * 1.1:
   - Highway output grouped by road reference number, which produces longer ways.
   - New optional command `-date` which only ouputs highways with coordinates from the given date(span)
@@ -110,6 +118,8 @@ Optional arguments:
 * [Veileder for ajourføring av veg](https://kartverket.no/globalassets/geodataarbeid/forvaltning-drift-og-vedlikehold/veileder_veitema_del1.pdf) - Kartverket editing guidelines.
 * [Fiksvegdata](https://fiksvegdata.opentns.org/) - For reporting mistakes in NVDB.
 * [highway_merge.py](https://github.com/osmno/highway_merge) - Python tool for merging NVDB files with existing highways in OSM.
-* [Road import plan](https://wiki.openstreetmap.org/wiki/Import/Catalogue/Road_import_(Norway)) - OpenStreetMap import wiki
-* [Road import progress](https://wiki.openstreetmap.org/wiki/Import/Catalogue/Road_import_(Norway)/Progress) - OpenStreetMap progress page for NVDB/Elveg import
-* [Veileder Elveg-import](https://wiki.openstreetmap.org/wiki/No:Veileder_Elveg-import) - OpenSteetMap guide wiki for the import process
+* [Road import plan](https://wiki.openstreetmap.org/wiki/Import/Catalogue/Road_import_(Norway)) - OpenStreetMap import wiki.
+* [Road import progress](https://wiki.openstreetmap.org/wiki/Import/Catalogue/Road_import_(Norway)/Progress) - OpenStreetMap progress page for NVDB/Elveg import.
+* [Progress for updating missing roads](https://wiki.openstreetmap.org/wiki/Import/Catalogue/Road_import_(Norway)/Update) - OpenStreetMap progress page for NVDB roads which are missing in OSM.
+* [Veileder Elveg-import](https://wiki.openstreetmap.org/wiki/No:Veileder_Elveg-import) - OpenSteetMap guide wiki for the import process.
+* [NVDB files](https://www.jottacloud.com/s/059f4e21889c60d4e4aaa64cc857322b134) - OSM files for all municipalities, for downloading.
