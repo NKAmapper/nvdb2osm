@@ -13,6 +13,8 @@
 import json
 import urllib.request
 import sys
+import socket
+import os
 import copy
 import math
 import calendar
@@ -20,10 +22,11 @@ import time
 from xml.etree import ElementTree as ET
 
 
-version = "1.2.0"
+version = "1.3.0"
 
 longer_ways = True      # True: Concatenate segments with identical tags into longer ways, within sequence
 debug = False           # True: Include detailed information tags for debugging
+save_input = False		# True: Save raw input from api to file
 include_objects = True  # True: Include road objects in network output
 object_tags = False     # True: Include detailed road object information tags
 date_filter = None      # Limit data to given date, for example "2020-05" to get highways created in May 2020
@@ -37,6 +40,7 @@ max_travel_depth = 10   # Maximum depth of recursive calls when finding route
 simplify_factor = 0.2	# Minimum deviation to straight line before simplification of redundant nodes (meters)
 years_back = 1			# Maximum number of years between survey of road ("datafangst") and start date (for date option)
 
+import_folder = "~/Jottacloud/osm/nvdb nye/log/"  # Folder containing json with history of road network for each month
 
 #server = "https://nvdbapiles-v3.utv.atlas.vegvesen.no/"  # UTV - Utvikling
 #server = "https://nvdbapiles-v3-stm.utv.atlas.vegvesen.no/"  # STM - Systemtest
@@ -81,11 +85,13 @@ medium_types = {
 }
 
 
+
 # Extension of dict class which returns an empty string if element does not exist
 
 class Properties(dict):
     def __missing__(self, key):
         return ""
+
 
 
 # Write message to console
@@ -94,6 +100,25 @@ def message (text):
 
 	sys.stderr.write(text)
 	sys.stderr.flush()
+
+
+
+# Open URL request. Retry if needed.
+
+def open_url (url):
+
+	tries = 0
+	while tries <= 5:
+		try:
+			return urllib.request.urlopen(url)
+		except Exception as err:  #(urllib.error.HTTPError, ConnectionResetError) as err:
+			if tries == 5:
+				raise
+			elif tries == 0:
+				message ("\n") 
+			message ("Retry %i: %s\n" % (tries + 1, err))
+			time.sleep(5 * (2**tries))
+			tries += 1
 
 
 
@@ -301,12 +326,12 @@ def process_lanes (lane_codes):
 
 		if "|" in psv[direction]:
 			tags['psv:lanes' + suffix] = psv[direction]
-			tags['motor_vehicle' + suffix] = psv[direction].replace("designated","no")
+			tags['motor_vehicle:lanes' + suffix] = psv[direction].replace("designated","no")
 
 		elif psv[direction]:
-			tags['psv' + suffix] = psv[direction]
 			if psv['forward'] == psv['backward']:
 				suffix = ""
+			tags['psv' + suffix] = psv[direction]
 			tags['motor_vehicle' + suffix] = psv[direction].replace("designated","no")
 
 	# Lanes tagging if more than one line in either direction
@@ -353,27 +378,31 @@ def process_lanes (lane_codes):
 
 def tag_highway (segment, lanes, tags, extras):
 
-	ref = segment['vegsystemreferanse']['vegsystem']
+	if segment['vegsystemreferanse']:
+		ref = segment['vegsystemreferanse']['vegsystem']
+	else:
+		ref = None
 
 	# Set key according to status (proposed, construction, existing)
 
-	if ref['fase'] == "A":
-		tags['highway'] = "construction"
-		tag_key = "construction"
-	elif ref['fase'] ==  "P":
-		if segment['typeVeg'] in ["Bilferje", "Passasjerferje"]:
-			tag_key = "proposed:route"
+	tag_key = "highway"
+	if ref:
+		if ref['fase'] == "A":
+			tags['highway'] = "construction"
+			tag_key = "construction"
+		elif ref['fase'] ==  "P":
+			if segment['typeVeg'] in ["Bilferje", "Passasjerferje"]:
+				tags['route'] = "proposed"
+			else:
+				tags['highway'] = "proposed"
+			tag_key = "proposed"
 		else:
-			tag_key = "proposed:highway"
-	else:
-		if segment['typeVeg'] in ["Bilferje", "Passasjerferje"]:
-			tag_key = "route"
-		else:
-			tag_key = "highway"
+			if segment['typeVeg'] in ["Bilferje", "Passasjerferje"]:
+				tag_key = "route"
 
 	# Special case: Strange data tagged as crossing
 
-	if segment['typeVeg'] in ["Kanalisert veg", "Enkel bilveg"] and \
+	if segment['typeVeg'] in ["Kanalisert veg", "Enkel bilveg"] and ref and \
 			"strekning" in segment['vegsystemreferanse'] and segment['vegsystemreferanse']['strekning']['trafikantgruppe'] == "G" or \
 			segment['typeVeg'] == "Gang- og sykkelveg" and "topologinivå" in segment and segment['topologinivå'] == "KJOREBANE":
 		tags[tag_key] = "footway"
@@ -383,7 +412,7 @@ def tag_highway (segment, lanes, tags, extras):
 
 	# Tagging for normal highways (cars)
 
-	elif segment['typeVeg'] in ["Enkel bilveg", "Kanalisert veg", "Rampe", "Rundkjøring"]:  # Regular highways (excluding "kjørefelt")
+	elif segment['typeVeg'] in ["Enkel bilveg", "Kanalisert veg", "Rampe", "Rundkjøring"] and ref:  # Regular highways (excluding "kjørefelt")
 
 		if "sideanlegg" in segment['vegsystemreferanse'] or \
 				len(lanes) == 1 and "K" in lanes[0] and ref['vegkategori'] in ["E", "R", "F"] and segment['detaljnivå'] != "Kjørebane" and \
@@ -426,6 +455,13 @@ def tag_highway (segment, lanes, tags, extras):
 #			if lanes and  "V1" in lanes[0] and "turn:lanes" not in tags:
 #				tags['turn:lanes'] = "left"
 
+	# Ferries
+
+	elif segment['typeVeg'] in ["Bilferje", "Passasjerferje"]:  # Ferry
+		tags[tag_key] = "ferry"
+		if ref:
+			tags['ref'] = get_ref(ref['vegkategori'], ref['nummer'])
+
 	# All other highway types
 
 	elif segment['typeVeg'] == "Gågate":  # Pedestrian street
@@ -436,7 +472,7 @@ def tag_highway (segment, lanes, tags, extras):
 		tags[tag_key] = "living_street"
 
 	elif segment['typeVeg'] == "Gang- og sykkelveg":  # Combined cycleway/footway		
-		if ref['vegkategori'] != "P":
+		if ref and ref['vegkategori'] != "P":
 			tags[tag_key] = "cycleway"
 			tags['foot'] = "designated"
 			tags['segregated'] = "no"
@@ -450,10 +486,6 @@ def tag_highway (segment, lanes, tags, extras):
 		tags['segregated'] = "yes"
 		if len(lanes) == 2 and lanes[0] == "1S" and lanes[1] == "2S":
 			tags['lanes'] = "2"
-
-	elif segment['typeVeg'] in ["Bilferje", "Passasjerferje"]:  # Ferry
-		tags[tag_key] = "ferry"
-		tags['ref'] = get_ref(ref['vegkategori'], ref['nummer'])
 
 	elif segment['typeVeg'] == "Gangveg":  # Footway
 		tags[tag_key] = "footway"
@@ -471,6 +503,19 @@ def tag_highway (segment, lanes, tags, extras):
 
 	elif segment['typeVeg'] == "Trapp":  # Stairs
 		tags[tag_key] = "steps"
+
+	elif segment['typeVeg'] == "Traktorveg":  # Track
+		tags[tag_key] = "track"
+
+	elif segment['typeVeg'] == "Sti":  # Path
+		tags[tag_key] = "path"
+
+	elif segment['typeVeg'] == "Annet":  # Other
+		tags[tag_key] = "road"
+
+	else:
+		tags["fixme"] = "Add highway tag for %s" % segment['typeVeg']
+		message ("  ** No highway tagging - %s %s\n" % (segment['typeVeg'], segment['referanse']))
 
 	# Tunnels and bridges
 
@@ -497,7 +542,7 @@ def tag_highway (segment, lanes, tags, extras):
 	if "gate" in segment:
 		if  segment['typeVeg'] != "Rundkjøring":
 			tags['name'] = segment['gate']['navn']
-#		if tag_key in tags and tags[tag_key] == "service":  # Upgrade street category if name is present
+#		if tag_key in tags and tags[tag_key] == "service":  # Upgrade street category if name is present (now done through road object "Gate")
 #			tags[tag_key] = "unclassified"
 
 	# Information tags for debugging
@@ -515,16 +560,17 @@ def tag_highway (segment, lanes, tags, extras):
 		if "topologinivå" in segment:
 			extras["TOPOLOGINIVÅ"] = segment['topologinivå']
 
-		ref = segment['vegsystemreferanse']
-		extras["VEGNUMMER"] = str(ref['vegsystem']['nummer'])
-		extras["VEGREFERANSE"] = ref['kortform']
-		extras["FASE"] = "#" + ref['vegsystem']['fase'] + " " + road_status[ ref['vegsystem']['fase'] ]
-		extras["KATEGORI"] = "#" + ref['vegsystem']['vegkategori'] + " " + road_category[ ref['vegsystem']['vegkategori'] ]['name']
+		if ref:
+			ref = segment['vegsystemreferanse']
+			extras["VEGNUMMER"] = str(ref['vegsystem']['nummer'])
+			extras["VEGREFERANSE"] = ref['kortform']
+			extras["FASE"] = "#" + ref['vegsystem']['fase'] + " " + road_status[ ref['vegsystem']['fase'] ]
+			extras["KATEGORI"] = "#" + ref['vegsystem']['vegkategori'] + " " + road_category[ ref['vegsystem']['vegkategori'] ]['name']
 
-		if "sideanlegg" in ref:
-			extras['SIDEANLEGG'] = "%i-%i id:%i" % (ref['sideanlegg']['sideanlegg'], ref['sideanlegg']['sideanleggsdel'], ref['sideanlegg']['id'])
-		if "kryssystem" in ref:
-			extras['KRYSSYSTEM'] = "%i-%i id:%i" % (ref['kryssystem']['kryssystem'], ref['kryssystem']['kryssdel'], ref['kryssystem']['id'])
+			if "sideanlegg" in ref:
+				extras['SIDEANLEGG'] = "%i-%i id:%i" % (ref['sideanlegg']['sideanlegg'], ref['sideanlegg']['sideanleggsdel'], ref['sideanlegg']['id'])
+			if "kryssystem" in ref:
+				extras['KRYSSYSTEM'] = "%i-%i id:%i" % (ref['kryssystem']['kryssystem'], ref['kryssystem']['kryssdel'], ref['kryssystem']['id'])
 
 	# Return highway type
 	if segment['typeVeg'] in ["Enkel bilveg", "Kanalisert veg"]:
@@ -536,7 +582,9 @@ def tag_highway (segment, lanes, tags, extras):
 
 
 
-# Produce tagging for supported road objects
+# Produce tagging for supported road objects.
+# Important note: Each individual segment is not known in this function.
+# Updates which depend on each segment is done in the update_tags function below.
 
 def tag_object (object_id, properties, tags):
 
@@ -559,7 +607,7 @@ def tag_object (object_id, properties, tags):
 	elif object_id == "538":  # Street name
 		if "Gatenavn" in properties:
 			tags['name'] = properties['Gatenavn'].replace("  "," ").strip()
-			if properties['Sideveg'] != "Ja":  # == "Nei":
+			if properties['Sideveg'] != "Ja":  # Not consistently tagged in NVDB (== "Nei")
 				tags['mainroad'] = "yes"  # Dummy to flag new highway class instead of residential/service
 
 	elif object_id == "581":  # Tunnels, 1st pass
@@ -575,11 +623,17 @@ def tag_object (object_id, properties, tags):
 		if "Navn" in properties and not("tunnel:name" in tags and tags['tunnel:name'] == properties['Navn']):
 			tags['tunnel:description'] = properties['Navn'].replace("  "," ").strip()
 
+	if object_id == "66":  # Avalanche protector
+		tags['tunnel'] = "avalanche_protector"
+		tags['layer'] = "-1"
+		if "Navn" in properties:
+			tags['tunnel:name'] = properties['Navn'].replace("  "," ").strip()	
+
 	elif object_id == "60":  # Bridge
 		tags['bridge'] = "yes"
 		tags['layer'] = "1"		
 		if "Navn" in properties:
-			tags['bridge:description'] = properties['Navn'].replace("  "," ").strip()
+			tags['bridge:description'] = properties['Navn'].replace("  "," ").replace(" Bru", " bru").strip()
 		if "Byggverkstype" in properties:
 			bridge_type = properties['Byggverkstype'].lower()
 			if "hengebru" in bridge_type:
@@ -596,6 +650,8 @@ def tag_object (object_id, properties, tags):
 					tags['bridge:movable'] = "swing"
 				elif bridge_type == "rullebru":
 					tags['bridge:movable'] = "retractable"
+			elif bridge_type == "flytebru":
+				tags['bridge:structure'] = "floating"
 
 	elif object_id == "856":  # Access restriction
 		restrictions = {
@@ -608,7 +664,7 @@ def tag_object (object_id, properties, tags):
 			'Motortrafikk kun tillatt for varetransport og kjøring til eiendommer': {'motor_vehicle': 'destination'},
 			'Forbudt for lastebil og trekkbil m unntak': {'hgv': 'permissive'},
 			'Forbudt for motorsykkel': {'motorcycle': 'no'},
-			'Gjennomkjøring forbudt': {'motor_vehicle': 'destination'},
+			'Utgår_Gjennomkjøring forbudt': {'motor_vehicle': 'destination'},
 			'Forbudt for motorsykkel og moped': {'motorcycle': 'no', 'moped': 'no'},
 			'Forbudt for motortrafikk unntatt buss': {'motor_vehicle': 'no', 'bus': 'yes'},
 			'Forbudt for motortrafikk unntatt buss og taxi': {'motor_vehicle': 'no', 'psv': 'yes'},
@@ -616,10 +672,10 @@ def tag_object (object_id, properties, tags):
 			'Forbudt for motortrafikk unntatt spesiell motorvogntype': {'motor_vehicle': 'permissive'},
 			'Forbudt for motortrafikk unntatt taxi': {'motor_vehicle': 'no', 'taxi': 'yes'},
 			'Forbudt for motortrafikk unntatt varetransport': {'motor_vehicle': 'delivery'},
-			'Forbudt for traktor': {'agriculatural': 'no'},
-			'Gjennomkjøring forbudt for lastebil og trekkbil': {'hgv': 'destination'},
-			'Sykling mot kjøreretningen tillatt': {'oneway:bicycle': 'no'},
-			'Gjennomkjøring forbudt til veg eller gate': {'motor_vehicle': 'destination'},
+			'Forbudt for traktor': {'agricultural': 'no'},
+			'Utgår_Gjennomkjøring forbudt for lastebil og trekkbil': {'hgv': 'destination'},
+			'Utgår_Sykling mot kjøreretningen tillatt': {'oneway:bicycle': 'no'},
+			'Utgår_Gjennomkjøring forbudt til veg eller gate': {'motor_vehicle': 'destination'},
 			'Motortrafikk kun tillatt for kjøring til virksomhet eller adresse': {'motor_vehicle': 'destination'},
 			'Forbudt for alle kjøretøy': {'motor_vehicle': 'no'},
 			'Forbudt for syklende': {'bicycle': 'no'}
@@ -641,17 +697,18 @@ def tag_object (object_id, properties, tags):
 		if properties['Bruksområde'] == "Møteplass":
 			tags['highway'] = "passing_place"
 
-	elif object_id == "607":  # Barrier
+	elif object_id in ["607", "23"]:  # Barrier
 		barriers = {
-			'Betongkjegle': 'bollard',
+			'Stolpe/pullert/kjegle': 'bollard',
 			'Rørgelender': 'cycle_barrier',
 			'Steinblokk': 'block',
-			'New Jersey': 'jersey_barrier',
+			'Betongblokk': 'jersey_barrier',
 			'Bussluse': 'bus_trap',
 			'Låst bom': 'lift_gate',
-			'Trafikkavviser': 'bollard',
-			'Bilsperre': 'gate',
-			'Bom med automatisk åpner': 'lift_gate'
+			'Utgår_Trafikkavviser': 'bollard',
+#			'Bilsperre': 'gate',
+			'Svingbom': 'swing_gate',
+			'Heve-/senkebom': 'lift_gate'
 		}
 		if properties['Type'] in barriers:
 			tags['barrier'] = barriers[ properties['Type'] ]
@@ -713,7 +770,7 @@ def tag_object (object_id, properties, tags):
 
 	elif object_id == "904":  # Maxweight/maxlength
 		if "tonn" in properties['Bruksklasse'] and "50 tonn" not in properties['Bruksklasse']:
-			tags['maxweight'] = properties['Bruksklasse'][-7:-5]
+			tags['maxweight'] = properties['Bruksklasse'][-7:-5]  # "xx tonn"
 		if properties['Maks vogntoglengde'] in ['12,40', '15,00']:
 			tags['maxlength'] = properties['Maks vogntoglengde'].replace(",", ".")
 
@@ -721,6 +778,10 @@ def tag_object (object_id, properties, tags):
 		tags['amenity'] = "ferry_terminal"
 		if "Navn" in properties:
 			tags['name'] = properties['Navn'].replace("Fk","").replace("Kai","").replace("  "," ").strip()
+
+	elif object_id == "770":  # Ferry route
+		if "Navn" in properties:
+			tags['name'] = properties['Navn'].strip()
 
 	elif object_id == "37":  # Motorway junction
 		if "Planskilt kryss" in properties['Type']:
@@ -767,11 +828,27 @@ def tag_object (object_id, properties, tags):
 		elif properties['Art'] == "Rådyr":
 			tags['species:en'] = "venison"
 
-	elif object_id == "449":  # Emergency tunnel
-		tags['highway'] = "footway"
-		tags['tunnel'] = "yes"
-		tags['layer'] = "-1"
-		tags['emergency'] = "designated"
+	elif object_id == "777":  # Scenic route
+		if properties['Status'] != "Framtidig turistveg":
+			tags['scenic'] = "yes"
+			tags['scenic:name'] = properties['Navn']
+
+	elif object_id == "532":  # Highway reference
+		if properties['Vegstatus'] == "Serviceveg":  # Service road
+			tags['highway'] = "service"
+			tags['motor_vehicle'] = "no"
+			tags['note'] = "Servicevei"
+		elif properties['Vegstatus'] == "Beredskapsveg":  # Diversion (ferries handled in update_tags function)
+			tags['highway'] = "service"
+			tags['motor_vehicle'] = "no"
+			tags['note'] = "Beredskapsvei"
+		elif properties['Vegstatus'] == "Rømningstunnel":  # Emergency tunnel
+			tags['highway'] = "footway"
+			tags['emergency'] = "designated"			
+			tags['access'] = "no"
+			tags['note'] = "Rømningstunnel"
+		elif properties['Vegstatus'] == "Midlertidig status bilveg":  # Deprecated highway reference
+			tags['highway'] = "road"  # Handle rest in update_tags function
 
 
 
@@ -783,24 +860,24 @@ def update_tags (segment, tags):
 	# Get right key, if highway
 	if "construction" in segment['tags']:
 		highway = "construction"
-	elif "proposed:highway" in segment['tags']:
-		highway = "proposed:highway"
+	elif "proposed" in segment['tags']:
+		highway = "proposed"
 	else:
 		highway = "highway"
 
-	# Keep name and unclassified update together (only if/elif here due to catch-all at the end)
+	# Please note only if/elif below due to catch-all at the end
+
+	# Keep name and unclassified update together
 	if "name" in tags or "mainroad" in tags:
 
 		# No street name for cycleways/footways and roundabouts
 		if "name" in tags and not ("junction" in segment['tags'] and segment['tags']['junction'] == "roundabout"):
 			segment['tags']['name'] = tags['name']
-#			segment['tags'].update(tags)
 
 		# Unclassified 
 		if "mainroad" in tags:
 			if highway in segment['tags'] and segment['tags'][highway] == "service":  # , "residential"]:
 				segment['tags'][ highway ] = "unclassified"
-#				segment['tags'].update(tags)
 
 	# Apply secondary tag in Oslo
 	elif "secondary" in tags:
@@ -811,8 +888,6 @@ def update_tags (segment, tags):
 	elif "tertiary" in tags:
 		if highway in segment['tags'] and segment['tags'][ highway ] in ["service", "residential", "unclassified"]:
 			segment['tags'][ highway ] = "tertiary"
-#			segment['tags'].update(tags)
-#			del segment['tags']['tertiary']
 
 	# Change highway type to motorway if given
 	elif "motorway" in tags:
@@ -821,8 +896,6 @@ def update_tags (segment, tags):
 				segment['tags'][ highway ] = "motorway_link"
 			else:
 				segment['tags'][ highway ] = "motorway"
-#			segment['tags'].update(tags)
-#			del segment['tags']['motorway']
 
 	# No maxspeed for service, cycleways and footways
 	elif "maxspeed" in tags:
@@ -831,7 +904,7 @@ def update_tags (segment, tags):
 
 	# Only apply extra tunnel and bridge tags if tunnel/bridge already identified (from 'medium' attribute in road network)
 	elif "tunnel" in tags or "bridge" in tags:
-		if "tunnel" in tags and "tunnel" in segment['tags'] or "bridge" in tags and "bridge" in segment['tags']:
+		if "tunnel" in tags and "tunnel" in segment['tags'] or "bridge" in tags and "bridge" in segment['tags'] or function == "vegobjekt":
 			segment['tags'].update(tags)
 
 	# Max weight for bridges only. 	Max length tags for tertiary and above road classes only
@@ -848,6 +921,24 @@ def update_tags (segment, tags):
 				'maxweight': tags['maxweight']
 			}
 			segment['tags'].update(new_tags)
+
+	# Deviations for highways only, not ferries
+	elif "note" in tags and tags['note'] == "Beredskapsvei":
+		if "route" in segment['tags']:
+			segment['tags']['note'] = "Beredskapsferge"
+#			del segment['tags']['route']
+		else:
+			segment['tags'].update(tags)
+
+	# Undecided ref/road category
+	elif "highway" in tags and tags['highway'] == "road":
+		if highway in segment['tags'] and segment['tags'][ highway ] not in ["tertiary", "tertiary_link", "unclassified", "residential", "service", "road"]:
+			if "ref" in segment['tags']:
+				segment['tags']['FIXME'] = "Veinummer/veiklasse? (tidligere %s/%s)" % (segment['tags']['ref'], segment['tags'][ highway ])
+				del segment['tags']['ref']
+			else:
+				segment['tags']['FIXME'] = "Veiklasse? (tidligere %s)" % segment['tags'][ highway ]
+			segment['tags']['highway'] = "road"
 
 	else:
 		segment['tags'].update(tags)
@@ -1369,8 +1460,11 @@ def get_road_object (object_id, **kwargs):
 	# Loop until no more pages to fetch
 
 	while returned> 0:
+#		if api_calls % 50 == 0:
+#			time.sleep(1)
+
 		request = urllib.request.Request(object_url, headers=request_headers)
-		file = urllib.request.urlopen(request)
+		file = open_url(request)  #urllib.request.urlopen(request)
 		data = json.load(file)
 		file.close()
 		api_calls += 1
@@ -1484,10 +1578,13 @@ def get_road_object (object_id, **kwargs):
 
 def get_hash(segment):
 
+	if not segment['vegsystemreferanse']:
+		return None
+
 	ref = segment['vegsystemreferanse']
 
 	if "nummer" in ref['vegsystem'] and ref['vegsystem']['nummer'] < 90000:
-		if "strekning" in ref and "delstrekning" in ref['strekning']:
+		if "strekning" in ref and "delstrekning" in ref['strekning'] and segment['typeVeg'] != "Rundkjøring":
 			return (ref['vegsystem']['vegkategori'], ref['vegsystem']['fase'], ref['vegsystem']['nummer'], ref['strekning']['strekning'], ref['strekning']['delstrekning'])
 		else:
 			return (ref['vegsystem']['vegkategori'], ref['vegsystem']['fase'], ref['vegsystem']['nummer'])
@@ -1543,13 +1640,8 @@ def process_road_network (segment):
 
 		fix_geometry(geometry)
 
-		if segment['vegsystemreferanse']:
-			highway_type = tag_highway(segment, lanes, tags, extras)
-			ref_tuple = get_hash(segment)
-		else:
-			highway_type = ""
-			ref_tuple = None
-#			message ("  ** No road system reference - %s\n" % segment_id)
+		highway_type = tag_highway(segment, lanes, tags, extras)
+		ref_tuple = get_hash(segment)
 
 		# Store information tags for debugging
 
@@ -1578,7 +1670,8 @@ def process_road_network (segment):
 			else:
 				extras['STED_SEGMENT'] = "%s (%.2fm)" % (segment['kortform'], segment['lengde'])
 
-		if debug:  # or date_filter:
+		if debug or date_filter:
+			extras['ID'] = segment_id
 			extras['DATO_START'] = segment['metadata']['startdato'][:10]
 			if "sluttdato" in segment['metadata']:
 				extras['DATO_SLUTT'] = segment['metadata']['sluttdato'][:10]
@@ -2288,46 +2381,69 @@ def fix_network():
 
 
 
-# Fetch road network or road objects from NVDB, including paging
-# In debug mode, saves input data to disc
+# Fetch road network or road objects from NVDB, including paging.
+# Saves input data to file for debugging, if chosen.
 
-def get_data(url):
+def get_data(url, output_filename):
 
 	global api_calls
 
 	message ("Loading NVDB data...\n")
 
-#	max_private_road_number = 0
-#	max_private_road_number_street = 0
+	# Load segment IDs from last month
+
+	if date_filter:
+		if date_filter[5:7] == "01":
+			last_filter = "%i-12" % (int(date_filter[:4]) - 1)
+		else:
+			last_filter = "%s-%02i" % (date_filter[:4], int(date_filter[5:7]) - 1)
+
+		history_filename = "nvdb_00_Norge_%s_history.json" % last_filter
+		file_path = os.path.expanduser(import_folder + history_filename)
+		if not os.path.isfile(file_path):
+			sys.exit("*** Log file '%s' for last month not found\n\n")
+			
+		file = open(file_path)
+#		last_history = set(json.load(file))
+		last_history = set()
+		for ref in json.load(file):
+			last_history.add(ref.rpartition("-")[0])  #("-".join(s.split("-")[:2]))
+		file.close()
+		new_history = []
+
+	if save_input:
+		debug_file = open("nvdb_%s_input.json" % function, "w")
+		debug_file.write("[\n")
 
 	returned = 1
 	total_returned = 0
-
-	if debug:
-		debug_file = open("nvdb_%s_input.json" % function, "w")
-		debug_file.write("[\n")
 
 	# Loop until no more pages to fetch
 
 	while returned > 0:
 
+#		if api_calls % 50 == 0:
+#			time.sleep(1)
+
 		request = urllib.request.Request(url, headers=request_headers)
-		file = urllib.request.urlopen(request)
+		file = open_url(request)  # urllib.request.urlopen(request)
 		data = json.load(file)
 		file.close()
 		api_calls += 1
 
-		if debug:
+		if save_input:
 			debug_file.write(json.dumps(data, indent=2, ensure_ascii=False))
 
 		for record in data['objekter']:
 			if "geometri" in record:
+				if date_filter:
+					new_history.append(record['referanse'])
 				if "vegobjekt" in url:
 					process_road_object(record)
-
-				elif "vegnett" in url and not date_filter or record['metadata']['startdato'][:len(date_filter)] == date_filter and \
-					record['geometri']['datafangstdato'] > str(int(record['metadata']['startdato'][:4]) - years_back) + record['metadata']['startdato'][4:]:
-
+				elif "vegnett" in url and (not date_filter or record['referanse'].rpartition("-")[0] not in last_history):
+#						record['metadata']['startdato'][:len(date_filter)] == date_filter and \
+#						record['geometri']['datafangstdato'] > str(int(record['metadata']['startdato'][:4]) - years_back) + record['metadata']['startdato'][4:] and \
+#						record['referanse'] not in last_history):
 					process_road_network(record)
 
 		returned = data['metadata']['returnert']
@@ -2335,15 +2451,23 @@ def get_data(url):
 		total_returned += returned
 		message ("\r%i" % total_returned)
 
-		if debug and returned > 0:
+		if save_input and returned > 0:
 			debug_file.write(",\n")
 
-	if debug:
+	# Save all segment IDs to make diff next month
+
+	if date_filter:
+		history_filename = "nvdb_00_Norge_%s_history.json" % date_filter
+		file = open(history_filename, "w")
+		json.dump(new_history, file, indent=1)
+		file.close()		
+		message("\rSaved log of road network to '%s'\n" % history_filename)			
+
+	if save_input:
 		debug_file.write("]\n")
 		debug_file.close()
 
 	message("\rDone processing %i road objects/segments\n" % total_returned)
-#	message("Max private road number: %i (%i with street name)\n" % (max_private_road_number, max_private_road_number_street))
 
 
 
@@ -2449,7 +2573,7 @@ def main_run(url, municipality):
 	master_node_id = 0     # Id for additional endpoint nodes
 	master_segment_id = 0  # Id for additional segments
 
-	get_data(url)
+	get_data(url, output_filename)
 
 	if function == "vegnett":
 		fix_network()
@@ -2472,9 +2596,11 @@ def main_run(url, municipality):
 		# Ways
 		get_road_object ("581")  # Tunnel node - 1st pass
 		get_road_object ("67")   # Tunnel ways - 2nd pass
+		get_road_object ("66")   # Avalanche protector		
 		get_road_object ("60")   # Bridges
 		get_road_object ("595")  # Motorway, motorroad
 		get_road_object ("538")  # Street names  (now included in basic road network segments)
+		get_road_object ("770")  # Ferry route names
 		get_road_object ("105")  # Maxspeeds
 		get_road_object ("241")  # Surface
 		get_road_object ("821")  # Functional road class
@@ -2482,6 +2608,8 @@ def main_run(url, municipality):
 		get_road_object ("107")  # Weather restrictions
 		get_road_object ("591")  # Maxheight
 		get_road_object ("904")  # Maxweight, maxlength
+		get_road_object ("532")  # Highway reference	
+#		get_road_object ("777")  # Scenic routes
 		
 		get_road_object ("96", property="(5530=7643)")  # Stop sign
 #		get_road_object ("96", property="(5530=7655)")  # No bicycle
@@ -2497,11 +2625,11 @@ def main_run(url, municipality):
 		get_road_object ("67")   # Tunnel ways - 2nd pass
 		get_road_object ("60")   # Bridges
 		get_road_object ("856")  # Access restrictions
-		
+	
 	if function == "vegobjekt":
 		optimize_object_network()
 
-	if not debug and (function == "vegnett" or len(segments) < 10000):
+	if not debug:  # and (function == "vegnett" or len(segments) < 10000):
 		simplify_segments()
 
 	optimize_network()
@@ -2542,11 +2670,6 @@ if __name__ == '__main__':
 		for municipality in county['kommuner']:
 			municipalities[ municipality['kommunenummer'] ] = municipality['kommunenavnNorsk']
 
-#	data = load_data("https://ws.geonorge.no/kommuneinfo/v1/kommuner")
-#	municipalities = {}
-#	for entry in data:
-#		municipalities[ entry['kommunenummer'] ] = entry['kommunenavn']
-
 	data = load_data(server + "vegobjekttyper")
 	object_types = {}
 	for entry in data:
@@ -2571,7 +2694,7 @@ if __name__ == '__main__':
 		elif (sys.argv[1] == "-vegobjekt") and (len(sys.argv) >= 3) and sys.argv[2].isdigit():
 			object_type = sys.argv[2]
 			url = server + "vegobjekter/" + sys.argv[2] + "?inkluder=metadata,egenskaper,geometri,lokasjon,vegsegmenter&alle_versjoner=false&srid=wgs84"
-			if len(sys.argv) >= 4:
+			if len(sys.argv) >= 4 and sys.argv[3][0] != "-":
 				municipality = get_municipality(sys.argv[3])
 
 		elif (sys.argv[1] == "-vegurl") and ("vegvesen.no" in sys.argv[2]):
@@ -2583,6 +2706,7 @@ if __name__ == '__main__':
 
 		if "-debug" in sys.argv:
 			debug = True
+			save_input = False
 
 		if "-dato" in sys.argv:
 			date_filter = sys.argv[ sys.argv.index("-dato") + 1 ]
@@ -2610,11 +2734,11 @@ if __name__ == '__main__':
 
 	if not url:
 		message("\nPlease provide main parameters in one of the following ways:\n")
-		message('  nvdb2osm -vegnett <nnnn>  -->  Road network for municipality number (4 digits) or name, or "Norge" for all municipalities\n')
+		message('  nvdb2osm -vegnett <municipality>  -->  Road network for municipality number (4 digits) or name, or "Norge" for all municipalities\n')
 		message('  nvdb2osm -vegref <reference>  -->  Road network for road reference code (e.g. "0400Ea6")\n')		
-		message('  nvdb2osm -vegobjekt <nnn>  -->  Road object number (2-3 digits) for entire country\n')
-		message('  nvdb2osm -vegobjekt <nnn> <mmmm>  -->  Road object number (2-3 digits) for municipality number (4 digits) or name\n')
-		message('  nvdb2osm -url "<api url string>"  -->  Any api generated from vegkart.no (UTM bounding box not supported, wgs84 appended)\n')
+		message('  nvdb2osm -vegobjekt <object>  -->  Road object number (2-3 digits) for entire country\n')
+		message('  nvdb2osm -vegobjekt <object> [municipality]  -->  Road object number (2-3 digits) for municipality number (4 digits) or name\n')
+		message('  nvdb2osm -url "<api url string>"  -->  Any api generated from vegkart.no (UTM bounding box not supported, wgs84 appended)\n\n')
 		sys.exit()
 
 	# Init
@@ -2636,7 +2760,7 @@ if __name__ == '__main__':
 
 	if function == "vegnett" and len(municipality) == 2 and not date_filter:
 		for municipality_id in sorted(list(municipalities.keys())):
-			if len(municipality_id) == 4 and (municipality == "00" or municipality_id[:2] == municipality) and municipality_id > "":
+			if len(municipality_id) == 4 and (municipality == "00" or municipality_id[:2] == municipality) and municipality_id >= "":
 				main_run(url, municipality_id)
 				message("\n")
 
