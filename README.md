@@ -95,6 +95,18 @@ Optional arguments:
 
 ### Changelog
 
+* 1.4:
+  - Support maxspeed:forward/backward and other objects with direction, e.g. surface, maxheight.
+  - Support new objects 922, 923 and 924 - service roads, diversion roads and roads with proposed new classification.
+  - Improve street names. Same code as for [addr2osm](https://github.com/NKAmapper/addr2osm/).
+  - Add ferry=* according to highway class.
+  - Fix ref=* in Oslo/Bærum for "ring" roads.
+* 1.3:
+  - Support ferry route names, emergency roads, avalanche protectors, deprecated highway references
+  - Support upcoming extension of tracks and paths from FKB
+  - Add "dato" function to discover new road segments since last month (saves all segment id´s each month)
+  - Various updates in NVDB attributes (barriers, traffic regulations)
+  - Various bug fixes and improvements for robustness
 * 1.2:
   - Simplify highway geometry, Ramer-Douglas-Peucker algorithm with factor 0.2.
   - Option to generate files in one go for all municipalities in Norway (type "Norge" instead of municipality name).
