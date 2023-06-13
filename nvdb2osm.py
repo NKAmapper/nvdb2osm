@@ -22,7 +22,7 @@ import time
 from xml.etree import ElementTree as ET
 
 
-version = "1.3.0"
+version = "1.4.0"
 
 longer_ways = True      # True: Concatenate segments with identical tags into longer ways, within sequence
 debug = False           # True: Include detailed information tags for debugging
@@ -203,6 +203,79 @@ def line_distance(s1, s2, p3):
 
 
 
+# Fix street name initials/dots and spacing + corrections table.
+# Same algorithm as in addr2osm.
+# Examples:
+#   Dr.Gregertsens vei -> Dr. Gregertsens vei
+#   Arne M Holdens vei -> Arne M. Holdens vei
+#   O G Hauges veg -> O.G. Hauges veg
+#   C. A. Pihls gate -> C.A. Pihls gate
+
+def fix_street_name (name):
+
+	# First test exceptions from Github json file
+
+	name = name.replace("  ", " ").strip()
+
+	if name in name_corrections:
+		return name_corrections[ name ]
+
+	# Loop characters in street name and make automatic corrections for dots and spacing
+
+	new_name = ""
+	length = len(name)
+
+	i = 0
+	word = 0  # Length of last word while looping street name
+
+	while i < length - 3:  # Avoid last 3 characters to enable forward looking tests
+
+		if name[i] == ".":
+			if name[i + 1] == " " and name[i + 3] in [".", " "]:  # Example "C. A. Pihls gate"
+				new_name = new_name + "." + name[i + 2]
+				i += 2
+				word = 1
+			elif name[i + 1] != " " and name[i + 2] not in [".", " "]:  # Example "Dr.Gregertsens vei"
+				new_name = new_name + ". "
+				word = 0
+			else:
+				new_name = new_name + "."
+				word = 0
+
+		elif name[i] == " ":
+			# Avoid "Elvemo / Bávttevuolbállggis", "Skjomenveien - Elvegård", "Bakken i Lysefjorden", "Kristian 4 gate"
+			if word == 1 and name[i-1] not in ["-", "/", "i"] and not name[i-1].isdigit():
+				if name[i + 2] in [" ", "."]:  # Example "O G Hauges veg"
+					new_name = new_name + "."
+				else:
+					new_name = new_name + ". "  # Example "K Sundts vei"
+			else:
+				new_name = new_name + " "
+			word = 0
+
+		else:
+			new_name = new_name + name[i]
+			word += 1
+
+		i += 1
+
+	new_name = new_name + name[i:i + 3]
+
+	# Check correction table for last part of name
+
+	split_name = new_name.split()
+	for i in range(1, len(split_name)):
+		if split_name[i] in name_ending_corrections:
+			split_name[i] = split_name[i].lower()
+			new_name = " ".join(split_name)
+
+	if name != new_name:
+		return new_name
+	else:
+		return name
+
+
+
 # Generate display road number
 
 def get_ref (category, number):
@@ -213,14 +286,6 @@ def get_ref (category, number):
 		ref = str(number)
 	else:
 		ref = ""
-
-	# Add Ring ref in Oslo/Bærum
-	if ref == "162":
-		ref += ";Ring 1"
-	elif ref == "161":
-		ref += ";Ring 2"
-	elif ref == "150":
-		ref += ";Ring 3"
 
 	return ref
 
@@ -233,22 +298,33 @@ def get_direction (lane):
 	if not lane:
 		return ("", "")
 
-	# Decompose lane coding
-	code = ""
-	if len(lane) > 1 and lane[1].isdigit():
-		side = lane[0:2]
-		if len(lane) > 2:
-			code = lane[2].upper()
-	else:
-		side = lane[0]
-		if len(lane) > 1:
-			code = lane[1].upper()
+	if isinstance(lane, list):
+		# Check if all directions are similar
+		last_direction = ""
+		for one_lane in lane:
+			direction, code = get_direction(one_lane)
+			if last_direction and direction != last_direction:
+				return ("", "")
+			last_direction = direction
+		return (last_direction, "")
 
-	# Odd numbers forward, else backward
-	if side[-1] in ["1", "3", "5", "7", "9"]:
-		return ("forward", code)
 	else:
-		return ("backward", code)
+		# Decompose lane coding
+		code = ""
+		if len(lane) > 1 and lane[1].isdigit():
+			side = lane[0:2]
+			if len(lane) > 2:
+				code = lane[2].upper()
+		else:
+			side = lane[0]
+			if len(lane) > 1:
+				code = lane[1].upper()
+
+		# Odd numbers forward, else backward
+		if side[-1] in ["1", "3", "5", "7", "9"]:
+			return ("forward", code)
+		else:
+			return ("backward", code)
 
 
 
@@ -428,9 +504,14 @@ def tag_highway (segment, lanes, tags, extras):
 				if ref['vegkategori'] in ["E", "R", "F"]:
 					tags['ref'] = get_ref(ref['vegkategori'], ref['nummer'])
 
-					# Special case in Oslo:
-					if ref['nummer'] == 6 and "gate" in segment and segment['gate']['navn'] in ["Hjalmar Brantings vei", "Adolf Hedins vei"]:
-						tags['ref'] += ";Ring 3"
+			# Add Ring ref in Oslo/Bærum
+			if ref['nummer'] == 162 and ref['vegkategori'] == "R":
+				tags['ref'] += ";Ring 1"
+			elif ref['nummer'] == 161 and ref['vegkategori'] == "K":
+				tags['ref'] += ";Ring 2"
+			elif (ref['nummer'] == 150 and ref['vegkategori'] == "R"
+					or ref['nummer'] == 6 and "gate" in segment and segment['gate']['navn'] in ["Hjalmar Brantings vei", "Adolf Hedins vei"]):
+				tags['ref'] += ";Ring 3"
 
 			if tags[tag_key] in ["trunk", "primary", "secondary"]:  # ref['vegkategori'] in ["E", "R", "F"]:
 				if segment['typeVeg'] == "Rampe" or segment['detaljnivå'] == "Kjørefelt" and lanes and "H" in lanes[0]:
@@ -461,6 +542,12 @@ def tag_highway (segment, lanes, tags, extras):
 		tags[tag_key] = "ferry"
 		if ref:
 			tags['ref'] = get_ref(ref['vegkategori'], ref['nummer'])
+			if ref['vegkategori'] == "F" and ref['nummer'] < 1000:
+				tags['ferry'] = "primary"
+			else:
+				tags['ferry'] = road_category[ ref['vegkategori'] ]['tag'].replace("residential", "unclassified").replace("service", "unclassified")
+		else:
+			tags['ferry'] = "unclassified"
 
 	# All other highway types
 
@@ -541,7 +628,7 @@ def tag_highway (segment, lanes, tags, extras):
 
 	if "gate" in segment:
 		if  segment['typeVeg'] != "Rundkjøring":
-			tags['name'] = segment['gate']['navn']
+			tags['name'] = fix_street_name(segment['gate']['navn'])
 #		if tag_key in tags and tags[tag_key] == "service":  # Upgrade street category if name is present (now done through road object "Gate")
 #			tags[tag_key] = "unclassified"
 
@@ -606,7 +693,7 @@ def tag_object (object_id, properties, tags):
 
 	elif object_id == "538":  # Street name
 		if "Gatenavn" in properties:
-			tags['name'] = properties['Gatenavn'].replace("  "," ").strip()
+			tags['name'] = fix_street_name(properties['Gatenavn'])
 			if properties['Sideveg'] != "Ja":  # Not consistently tagged in NVDB (== "Nei")
 				tags['mainroad'] = "yes"  # Dummy to flag new highway class instead of residential/service
 
@@ -833,29 +920,26 @@ def tag_object (object_id, properties, tags):
 			tags['scenic'] = "yes"
 			tags['scenic:name'] = properties['Navn']
 
-	elif object_id == "532":  # Highway reference
-		if properties['Vegstatus'] == "Serviceveg":  # Service road
-			tags['highway'] = "service"
-			tags['motor_vehicle'] = "no"
-			tags['note'] = "Servicevei"
-		elif properties['Vegstatus'] == "Beredskapsveg":  # Diversion (ferries handled in update_tags function)
-			tags['highway'] = "service"
-			tags['motor_vehicle'] = "no"
-			tags['note'] = "Beredskapsvei"
-		elif properties['Vegstatus'] == "Rømningstunnel":  # Emergency tunnel
-			tags['highway'] = "footway"
-			tags['emergency'] = "designated"			
-			tags['access'] = "no"
-			tags['note'] = "Rømningstunnel"
-		elif properties['Vegstatus'] == "Midlertidig status bilveg":  # Deprecated highway reference
-			tags['highway'] = "road"  # Handle rest in update_tags function
+	elif object_id == "922":  # Highway class undetermined
+		if properties['Foreslått endring'] and properties['Foreslått endring'] != "Annen endring":
+			tags['note'] = "Foreslått " + properties['Foreslått endring'].lower()
+		else:
+			tags['note'] = "Foreslått endring av veiklasse"
+
+	elif object_id == "923":  # Diversion
+		tags['note'] = "Beredskapsvei"  # Further tagging in update_tags function
+
+	elif object_id == "924":  # Service road
+		tags['highway'] = "service"
+		tags['motor_vehicle'] = "no"
+		tags['note'] = "Servicevei"		
 
 
 
 # Update tags in segment, including required corrections for motorway, maxspeed and street name
 # This is the only place to make road object tagging dependent on earlier basic highway tagging based on road reference
 
-def update_tags (segment, tags):
+def update_tags (segment, tags, direction):
 
 	# Get right key, if highway
 	if "construction" in segment['tags']:
@@ -897,10 +981,23 @@ def update_tags (segment, tags):
 			else:
 				segment['tags'][ highway ] = "motorway"
 
-	# No maxspeed for service, cycleways and footways
+	# No maxspeed for service, cycleways and footways.
+	# Maxspeeds may be different for each direction.
 	elif "maxspeed" in tags:
 		if not ("highway" in segment['tags'] and segment['tags']['highway'] in ["unclassified", "service", "cycleway", "footway"]):
-			segment['tags'].update(tags)		
+			if direction and "oneway" not in segment['tags']:
+				if "maxspeed" not in segment['tags']:
+					segment['tags']['maxspeed:' + direction] = tags['maxspeed']
+					if ("maxspeed:forward" in segment['tags'] and "maxspeed:backward" in segment['tags']
+							and segment['tags']['maxspeed:forward'] == segment['tags']['maxspeed:backward']):
+						del segment['tags']['maxspeed:forward']
+						del segment['tags']['maxspeed:backward']
+						segment['tags']['maxspeed'] = tags['maxspeed']
+			else:
+				segment['tags']['maxspeed'] = tags['maxspeed']
+				for key in ["maxspeed:forward", "maxspeed:backward"]:
+					if key in segment['tags']:
+						del segment['tags'][ key ]
 
 	# Only apply extra tunnel and bridge tags if tunnel/bridge already identified (from 'medium' attribute in road network)
 	elif "tunnel" in tags or "bridge" in tags:
@@ -925,20 +1022,14 @@ def update_tags (segment, tags):
 	# Deviations for highways only, not ferries
 	elif "note" in tags and tags['note'] == "Beredskapsvei":
 		if "route" in segment['tags']:
-			segment['tags']['note'] = "Beredskapsferge"
+			segment['tags']['note'] = "Beredskapsferje"
 #			del segment['tags']['route']
 		else:
-			segment['tags'].update(tags)
-
-	# Undecided ref/road category
-	elif "highway" in tags and tags['highway'] == "road":
-		if highway in segment['tags'] and segment['tags'][ highway ] not in ["tertiary", "tertiary_link", "unclassified", "residential", "service", "road"]:
+			segment['tags']['highway'] = "service"
+			segment['tags']['motor_vehicle'] = "no"
+			segment['tags']['note'] = "Beredskapsvei"
 			if "ref" in segment['tags']:
-				segment['tags']['FIXME'] = "Veinummer/veiklasse? (tidligere %s/%s)" % (segment['tags']['ref'], segment['tags'][ highway ])
 				del segment['tags']['ref']
-			else:
-				segment['tags']['FIXME'] = "Veiklasse? (tidligere %s)" % segment['tags'][ highway ]
-			segment['tags']['highway'] = "road"
 
 	else:
 		segment['tags'].update(tags)
@@ -1124,32 +1215,38 @@ def update_segments_line (parent_sequence_id, tag_start, tag_end, direction, new
 				if tag_start < segment['parent_start'] + margin and segment['parent_end'] - margin < tag_end or \
 						segment['parent_start'] + margin < tag_start < segment['parent_end'] - margin or \
 						segment['parent_start'] + margin < tag_end < segment['parent_end'] - margin:
-					update_tags(segment, new_tags)
+					update_tags(segment, new_tags, "")
 					segment['extras'].update(new_extras)
 
 	else:
+		if direction and "maxspeed" not in new_tags and "surface" not in new_tags and "maxheight" not in new_tags:
+			message ("  *** Tag with direction %s: %s\n" % (direction, str(new_tags)))
 		for segment_id in parents[parent_sequence_id][:]:
 			segment = segments[ segment_id ]
-			margin = (segment['parent_end'] - segment['parent_start']) / segment['length'] * segment_margin  # Meters
-			if tag_start < segment['parent_start'] + margin and segment['parent_end'] - margin < tag_end:
-				update_tags(segment, new_tags)
-				segment['extras'].update(new_extras)
 
-			elif segment['parent_start'] + margin < tag_start and tag_end < segment['parent_end'] - margin:
-				new_segment = clip_segment (segment, tag_start)
-				clip_segment (new_segment, tag_end)
-				update_tags(new_segment, new_tags)
-				new_segment['extras'].update(new_extras)
+			# Direction of object (if given) must be same as direction of highway (if oneway)
+			if not(direction and "oneway" in segment['tags'] and segment['reverse'] == (direction == "forward")):
 
-			elif segment['parent_start'] + margin < tag_start < segment['parent_end'] - margin:
-				new_segment = clip_segment (segment, tag_start)
-				update_tags(new_segment, new_tags)
-				new_segment['extras'].update(new_extras)
+				margin = (segment['parent_end'] - segment['parent_start']) / segment['length'] * segment_margin  # Meters
+				if tag_start < segment['parent_start'] + margin and segment['parent_end'] - margin < tag_end:
+					update_tags(segment, new_tags, direction)
+					segment['extras'].update(new_extras)
 
-			elif segment['parent_start'] + margin < tag_end < segment['parent_end'] - margin:
-				new_segment = clip_segment (segment, tag_end)
-				update_tags(segment, new_tags)
-				segment['extras'].update(new_extras)
+				elif segment['parent_start'] + margin < tag_start and tag_end < segment['parent_end'] - margin:
+					new_segment = clip_segment (segment, tag_start)
+					clip_segment (new_segment, tag_end)
+					update_tags(new_segment, new_tags, direction)
+					new_segment['extras'].update(new_extras)
+
+				elif segment['parent_start'] + margin < tag_start < segment['parent_end'] - margin:
+					new_segment = clip_segment (segment, tag_start)
+					update_tags(new_segment, new_tags, direction)
+					new_segment['extras'].update(new_extras)
+
+				elif segment['parent_start'] + margin < tag_end < segment['parent_end'] - margin:
+					new_segment = clip_segment (segment, tag_end)
+					update_tags(segment, new_tags, direction)
+					segment['extras'].update(new_extras)
 
 
 
@@ -1496,14 +1593,14 @@ def get_road_object (object_id, **kwargs):
 				elif attribute['navn'] == "Assosierte Tunnelløp":
 					associated_tunnels = attribute['innhold']
 
-			# Add tags from 1st pass of tunnels
+			# Add tags from stored tunnels (pass 2)
 			if object_id == "67" and road_object['id'] in tunnels:
 				tags.update(tunnels[ road_object['id'] ]['tags'])
 
 			tag_object(object_id, properties, tags)
 
-			# Update all connected tunnel segments
-			if object_id == "581" and tags:
+			# Update all connected tunnel segments (pass 1)
+			if object_id == "581":
 				for tunnel in associated_tunnels:
 					tunnels[ tunnel['verdi'] ] = {
 						'tags': tags,
@@ -1543,11 +1640,11 @@ def get_road_object (object_id, **kwargs):
 						if location['stedfestingstype'] == "Linje":
 							if location['startposisjon'] != location['sluttposisjon']:
 								if location['kjørefelt']:
-									direction, code = get_direction(location['kjørefelt'][0])
+									direction, code = get_direction(location['kjørefelt'])
 								else:
 									direction = ""
-								update_segments_line (location['veglenkesekvensid'], location['startposisjon'], location['sluttposisjon'], \
-									direction, tags, extras)
+								update_segments_line (location['veglenkesekvensid'], location['startposisjon'], location['sluttposisjon'],
+														direction, tags, extras)
 #							else:
 #								message ("  *** Equal start and end positions in location - %i\n" % road_object['id'])
 
@@ -1595,7 +1692,7 @@ def get_hash(segment):
 
 
 
-# Generate tagging for road network segment and store in network data strucutre
+# Generate tagging for road network segment and store in network data structure
 
 def process_road_network (segment):
 
@@ -1846,7 +1943,7 @@ def process_road_object (road_object):
 				'geotype': geometry_type
 			} 
 
-			update_tags(new_segment, tags)
+			update_tags(new_segment, tags, "")
 			new_segment['extras'].update(extras)
 
 			segments[segment_id] = new_segment
@@ -2404,10 +2501,9 @@ def get_data(url, output_filename):
 			sys.exit("*** Log file '%s' for last month not found\n\n")
 			
 		file = open(file_path)
-#		last_history = set(json.load(file))
 		last_history = set()
 		for ref in json.load(file):
-			last_history.add(ref.rpartition("-")[0])  #("-".join(s.split("-")[:2]))
+			last_history.add(ref.rpartition("-")[0])
 		file.close()
 		new_history = []
 
@@ -2608,7 +2704,9 @@ def main_run(url, municipality):
 		get_road_object ("107")  # Weather restrictions
 		get_road_object ("591")  # Maxheight
 		get_road_object ("904")  # Maxweight, maxlength
-		get_road_object ("532")  # Highway reference	
+		get_road_object ("922")  # Highway class undetermined
+		get_road_object ("923")  # Diversion
+		get_road_object ("924")  # Service road
 #		get_road_object ("777")  # Scenic routes
 		
 		get_road_object ("96", property="(5530=7643)")  # Stop sign
@@ -2675,6 +2773,11 @@ if __name__ == '__main__':
 	for entry in data:
 		object_types[ str(entry['id']) ] = entry['navn']
 	del data
+
+	# Get street name corrections from GitHub
+
+	name_corrections = load_data("https://raw.githubusercontent.com/NKAmapper/addr2osm/master/corrections.json")
+	name_ending_corrections = set(load_data("https://raw.githubusercontent.com/NKAmapper/addr2osm/master/corrections_ending.json"))
 
 	# Build query
 
