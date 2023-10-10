@@ -6,21 +6,21 @@ To replace [elveg2osm](https://github.com/gomyhr/elveg2osm). Supports v3 of NVDB
 NVDB conversion for Sweden is [here](https://github.com/NKAmapper/nvdb2osm/blob/master/README_SWEDEN.md). 
 
 ### Usage
-1. **nvdb2osm -vegnett "kommune"**
+1. **nvdb2osm -vegnett <"kommune">**
    - Produces OSM file with road network for a given municipality (name or 4 digit municipality code), or "Norway" for all municipalities.
    - Example: `nvdb2osm -vegnett 4601`for the road network of Bergen.
 
-2. **nvdb2osm -vegobjekt "vegobjektkode" ["kommune"]**
+2. **nvdb2osm -vegobjekt <"vegobjektkode"> [ <"kommune"> ]**
    - Produces OSM file with all road objects of a given [type](http://labs.vegdata.no/nvdb-datakatalog/) (name or 2-3 digit object code).
    - Optionally within a given municipality (name or 4 digit municipality code), else for the entire country of Norway.
    - Example: `nvdb2osm -vegobjekt 103 0301` for all traffic calming/speed bumps in Oslo.
 
-3. **nvdb2osm -vegref "vegreferanse"**
+3. **nvdb2osm -vegref <"vegreferanse">**
    - Produces OSM file with road network for given road reference code.
    - Example: `nvdb2osm -vegref RA3` for Rv3 under construction (A).
    - The reference code is found by clicking on a road in [vegkart.no v3](http://vegkart.no).
 
-4. **nvdb2osm -vegurl "api url"**
+4. **nvdb2osm -vegurl <"api url">**
    - Produces OSM file defined by given NVDB API URL from [vegkart.no v3](http://vegkart.no) or
    any other permitted API URL as described in the [NVDB API documentation](https://nvdbapiles-v3.atlas.vegvesen.no/dokumentasjon/).
    - `&srid=wgs84` automatically added to the API URL string.
@@ -40,7 +40,8 @@ Optional arguments:
 * `-date "dato"` - Only ouput highways with coordinates provided during given date, e.g. "2020-08" for August 2020, or "2020" for full year.
 * `-debug` - Get detailed information from NVDB
 * `-segmentert` - Get segmented road network, i.e. road segments are not combined into longer ways.
-* `"filnavn.osm"` - Set output filename (must end with ".osm")
+* `<"filnavn.osm">` - Set output filename (must end with ".osm")
+* `<"kommunenummer">`- For Norway batch runs, (re)start with the given 4 digit municipality number.
 
 ### Generated OSM files
 
@@ -95,6 +96,12 @@ Optional arguments:
 
 ### Changelog
 
+* 1.5:
+  - Support NVDB data catalogue 2.34.
+  - Make surface=asphalt default for motorway, trunk, primary and secondary roads + cycleways.
+  - No explicit bicycle access on sidewalks and highway crossings.
+  - Batch run may (re)start from given municipality number.
+  - Data loading more resilient.
 * 1.4:
   - Support maxspeed:forward/backward and other objects with direction, e.g. surface, maxheight.
   - Support new objects 922, 923 and 924 - service roads, diversion roads and roads with proposed new classification.
