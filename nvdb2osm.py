@@ -22,7 +22,7 @@ import time
 from xml.etree import ElementTree as ET
 
 
-version = "1.4.0"
+version = "1.5.0"
 
 longer_ways = True      # True: Concatenate segments with identical tags into longer ways, within sequence
 debug = False           # True: Include detailed information tags for debugging
@@ -112,6 +112,30 @@ def open_url (url):
 		try:
 			return urllib.request.urlopen(url)
 		except Exception as err:  #(urllib.error.HTTPError, ConnectionResetError) as err:
+			if tries == 5:
+				raise
+			elif tries == 0:
+				message ("\n") 
+			message ("Retry %i: %s\n" % (tries + 1, err))
+			time.sleep(5 * (2**tries))
+			tries += 1
+
+
+
+# Load data from api. Retry if needed.
+
+def load_data (url):
+
+	tries = 0
+	while tries <= 5:
+		try:
+			request = urllib.request.Request(url, headers=request_headers)
+			file = urllib.request.urlopen(request)
+			data = json.load(file)
+			file.close()
+			return data
+
+		except Exception as err:
 			if tries == 5:
 				raise
 			elif tries == 0:
@@ -508,7 +532,7 @@ def tag_highway (segment, lanes, tags, extras):
 			if ref['nummer'] == 162 and ref['vegkategori'] == "R":
 				tags['ref'] += ";Ring 1"
 			elif ref['nummer'] == 161 and ref['vegkategori'] == "K":
-				tags['ref'] += ";Ring 2"
+				tags['ref'] = "161;Ring 2"
 			elif (ref['nummer'] == 150 and ref['vegkategori'] == "R"
 					or ref['nummer'] == 6 and "gate" in segment and segment['gate']['navn'] in ["Hjalmar Brantings vei", "Adolf Hedins vei"]):
 				tags['ref'] += ";Ring 3"
@@ -517,6 +541,7 @@ def tag_highway (segment, lanes, tags, extras):
 				if segment['typeVeg'] == "Rampe" or segment['detaljnivå'] == "Kjørefelt" and lanes and "H" in lanes[0]:
 					tags[tag_key] += "_link"
 #				tags['ref'] = get_ref(ref['vegkategori'], ref['nummer'])
+				tags['surface'] = "asphalt"  # May be owerwritten later, based on road object info
 
 		if segment['typeVeg'] == "Rundkjøring":
 			tags['junction'] = "roundabout"
@@ -554,6 +579,7 @@ def tag_highway (segment, lanes, tags, extras):
 	elif segment['typeVeg'] == "Gågate":  # Pedestrian street
 		tags[tag_key] = "pedestrian"
 		tags['bicycle'] = "yes"
+		tags['surface'] = "asphalt"
 
 	elif segment['typeVeg'] == "Gatetun":  # Living street
 		tags[tag_key] = "living_street"
@@ -563,14 +589,17 @@ def tag_highway (segment, lanes, tags, extras):
 			tags[tag_key] = "cycleway"
 			tags['foot'] = "designated"
 			tags['segregated'] = "no"
+			tags['surface'] = "asphalt"
 		else:
 			tags[tag_key] = "footway"
 			tags['bicycle'] = "yes"
+			tags['segregated'] = "no"
 
 	elif segment['typeVeg'] == "Sykkelveg":  # Express cycleway
 		tags[tag_key] = "cycleway"
 		tags["foot"] = "designated"
 		tags['segregated'] = "yes"
+		tags['surface'] = "asphalt"
 		if len(lanes) == 2 and lanes[0] == "1S" and lanes[1] == "2S":
 			tags['lanes'] = "2"
 
@@ -580,12 +609,12 @@ def tag_highway (segment, lanes, tags, extras):
 
 	elif segment['typeVeg'] == "Fortau":  # Sidewalk
 		tags[tag_key] = "footway"
-		tags['bicycle'] = "yes"
+#		tags['bicycle'] = "yes"
 		tags['footway'] = "sidewalk"
 
 	elif segment['typeVeg'] == "Gangfelt":  # Crossing
 		tags[tag_key] = "footway"
-		tags['bicycle'] = "yes"
+#		tags['bicycle'] = "yes"
 		tags['footway'] = "crossing"
 
 	elif segment['typeVeg'] == "Trapp":  # Stairs
@@ -691,9 +720,9 @@ def tag_object (object_id, properties, tags):
 		if "Fartsgrense" in properties: 
 			tags['maxspeed'] = str(properties["Fartsgrense"])
 
-	elif object_id == "538":  # Street name
-		if "Gatenavn" in properties:
-			tags['name'] = fix_street_name(properties['Gatenavn'])
+	elif object_id == "538":  # Address name
+		if "Adressenavn" in properties:  # Used to be "Gateenavn"
+			tags['name'] = fix_street_name(properties['Adressenavn'])
 			if properties['Sideveg'] != "Ja":  # Not consistently tagged in NVDB (== "Nei")
 				tags['mainroad'] = "yes"  # Dummy to flag new highway class instead of residential/service
 
@@ -792,7 +821,8 @@ def tag_object (object_id, properties, tags):
 			'Betongblokk': 'jersey_barrier',
 			'Bussluse': 'bus_trap',
 			'Låst bom': 'lift_gate',
-			'Utgår_Trafikkavviser': 'bollard',
+			'Annen type vegbom/sperring': 'gate',
+#			'Utgår_Trafikkavviser': 'bollard',
 #			'Bilsperre': 'gate',
 			'Svingbom': 'swing_gate',
 			'Heve-/senkebom': 'lift_gate'
@@ -930,9 +960,7 @@ def tag_object (object_id, properties, tags):
 		tags['note'] = "Beredskapsvei"  # Further tagging in update_tags function
 
 	elif object_id == "924":  # Service road
-		tags['highway'] = "service"
-		tags['motor_vehicle'] = "no"
-		tags['note'] = "Servicevei"		
+		tags['note'] = "Servicevei"  # Further tagging in update_tags function
 
 
 
@@ -1025,11 +1053,19 @@ def update_tags (segment, tags, direction):
 			segment['tags']['note'] = "Beredskapsferje"
 #			del segment['tags']['route']
 		else:
-			segment['tags']['highway'] = "service"
+			segment['tags'][ highway ] = "service"
 			segment['tags']['motor_vehicle'] = "no"
 			segment['tags']['note'] = "Beredskapsvei"
 			if "ref" in segment['tags']:
 				del segment['tags']['ref']
+
+	# Service road
+	elif "note" in tags and tags['note'] == "Servicevei":
+		segment['tags'][ highway ] = "service"
+		segment['tags']['motor_vehicle'] = "no"
+		segment['tags']['note'] = "Servicevei"
+		if "ref" in segment['tags']:
+			del segment['tags']['ref']
 
 	else:
 		segment['tags'].update(tags)
@@ -1560,10 +1596,12 @@ def get_road_object (object_id, **kwargs):
 #		if api_calls % 50 == 0:
 #			time.sleep(1)
 
-		request = urllib.request.Request(object_url, headers=request_headers)
-		file = open_url(request)  #urllib.request.urlopen(request)
-		data = json.load(file)
-		file.close()
+#		request = urllib.request.Request(object_url, headers=request_headers)
+#		file = open_url(request)  #urllib.request.urlopen(request)
+#		data = json.load(file)
+#		file.close()
+
+		data = load_data(object_url)
 		api_calls += 1
 
 		for road_object in data['objekter']:
@@ -2521,10 +2559,12 @@ def get_data(url, output_filename):
 #		if api_calls % 50 == 0:
 #			time.sleep(1)
 
-		request = urllib.request.Request(url, headers=request_headers)
-		file = open_url(request)  # urllib.request.urlopen(request)
-		data = json.load(file)
-		file.close()
+#		request = urllib.request.Request(url, headers=request_headers)
+#		file = open_url(request)  # urllib.request.urlopen(request)
+#		data = json.load(file)
+#		file.close()
+
+		data = load_data(url)
 		api_calls += 1
 
 		if save_input:
@@ -2565,18 +2605,6 @@ def get_data(url, output_filename):
 
 	message("\rDone processing %i road objects/segments\n" % total_returned)
 
-
-
-# Load data from api
-
-def load_data (url):
-
-	request = urllib.request.Request(url, headers=request_headers)
-	file = urllib.request.urlopen(request)
-	data = json.load(file)
-	file.close()
-
-	return data
 
 
 # Identify municipality name, unless more than one hit
@@ -2695,7 +2723,7 @@ def main_run(url, municipality):
 		get_road_object ("66")   # Avalanche protector		
 		get_road_object ("60")   # Bridges
 		get_road_object ("595")  # Motorway, motorroad
-		get_road_object ("538")  # Street names  (now included in basic road network segments)
+		get_road_object ("538")  # Address names  (now also included in basic road network segments)
 		get_road_object ("770")  # Ferry route names
 		get_road_object ("105")  # Maxspeeds
 		get_road_object ("241")  # Surface
@@ -2783,12 +2811,15 @@ if __name__ == '__main__':
 
 	url = ""
 	municipality = ""
+	start_municipality = ""
 	object_type = ""
 
 	if len(sys.argv) > 2:
 		if (sys.argv[1] == "-vegnett") and len(sys.argv) >= 3:
 			municipality = get_municipality(sys.argv[2])
 			url = server + "vegnett/veglenkesekvenser/segmentert?srid=wgs84" # &kommune=" + municipality
+			if municipality == "00" and len(sys.argv) > 3 and sys.argv[3].isdigit():
+				start_municipality = sys.argv[3]
 
 		elif (sys.argv[1] == "-vegref") and (len(sys.argv) >= 3):
 			url = server + "vegnett/veglenkesekvenser/segmentert?srid=wgs84&vegsystemreferanse=" + sys.argv[2]
@@ -2863,7 +2894,7 @@ if __name__ == '__main__':
 
 	if function == "vegnett" and len(municipality) == 2 and not date_filter:
 		for municipality_id in sorted(list(municipalities.keys())):
-			if len(municipality_id) == 4 and (municipality == "00" or municipality_id[:2] == municipality) and municipality_id >= "":
+			if len(municipality_id) == 4 and (municipality == "00" or municipality_id[:2] == municipality) and municipality_id >= start_municipality:
 				main_run(url, municipality_id)
 				message("\n")
 
@@ -2872,3 +2903,4 @@ if __name__ == '__main__':
 		main_run(url, municipality)
 
 	message ("\nDone\n\n")
+	
