@@ -22,7 +22,7 @@ import time
 from xml.etree import ElementTree as ET
 
 
-version = "1.5.0"
+version = "1.6.0"
 
 longer_ways = True      # True: Concatenate segments with identical tags into longer ways, within sequence
 debug = False           # True: Include detailed information tags for debugging
@@ -721,7 +721,7 @@ def tag_object (object_id, properties, tags):
 			tags['maxspeed'] = str(properties["Fartsgrense"])
 
 	elif object_id == "538":  # Address name
-		if "Adressenavn" in properties:  # Used to be "Gateenavn"
+		if "Adressenavn" in properties:  # Used to be "Gatenavn"
 			tags['name'] = fix_street_name(properties['Adressenavn'])
 			if properties['Sideveg'] != "Ja":  # Not consistently tagged in NVDB (== "Nei")
 				tags['mainroad'] = "yes"  # Dummy to flag new highway class instead of residential/service
@@ -771,30 +771,30 @@ def tag_object (object_id, properties, tags):
 
 	elif object_id == "856":  # Access restriction
 		restrictions = {
-			'Forbudt for gående og syklende': {'foot': 'no', 'bicycle': 'no'},
-			'Forbudt for motortrafikk': {'motor_vehicle': 'no'},
-			'Motortrafikk kun tillatt for varetransport': {'motor_vehicle': 'delivery'},
+			'Forbudt for alle kjøretøy': {'motor_vehicle': 'no'},
 			'Forbudt for gående': {'foot': 'no'},
-			'Motortrafikk kun tillatt for kjøring til eiendommer': {'motor_vehicle': 'destination'},
+			'Forbudt for gående og syklende': {'foot': 'no', 'bicycle': 'no'},
 			'Forbudt for lastebil og trekkbil': {'hgv': 'no'},
-			'Motortrafikk kun tillatt for varetransport og kjøring til eiendommer': {'motor_vehicle': 'destination'},
 			'Forbudt for lastebil og trekkbil m unntak': {'hgv': 'permissive'},
 			'Forbudt for motorsykkel': {'motorcycle': 'no'},
-			'Utgår_Gjennomkjøring forbudt': {'motor_vehicle': 'destination'},
 			'Forbudt for motorsykkel og moped': {'motorcycle': 'no', 'moped': 'no'},
+			'Forbudt for motortrafikk': {'motor_vehicle': 'no'},
 			'Forbudt for motortrafikk unntatt buss': {'motor_vehicle': 'no', 'bus': 'yes'},
 			'Forbudt for motortrafikk unntatt buss og taxi': {'motor_vehicle': 'no', 'psv': 'yes'},
 			'Forbudt for motortrafikk unntatt moped': {'motor_vehicle': 'no', 'moped': 'yes'},
 			'Forbudt for motortrafikk unntatt spesiell motorvogntype': {'motor_vehicle': 'permissive'},
 			'Forbudt for motortrafikk unntatt taxi': {'motor_vehicle': 'no', 'taxi': 'yes'},
 			'Forbudt for motortrafikk unntatt varetransport': {'motor_vehicle': 'delivery'},
+			'Forbudt for syklende': {'bicycle': 'no'},
 			'Forbudt for traktor': {'agricultural': 'no'},
+			'Utgår_Gjennomkjøring forbudt': {'motor_vehicle': 'destination'},
 			'Utgår_Gjennomkjøring forbudt for lastebil og trekkbil': {'hgv': 'destination'},
-			'Utgår_Sykling mot kjøreretningen tillatt': {'oneway:bicycle': 'no'},
 			'Utgår_Gjennomkjøring forbudt til veg eller gate': {'motor_vehicle': 'destination'},
+			'Motortrafikk kun tillatt for kjøring til eiendommer': {'motor_vehicle': 'destination'},
 			'Motortrafikk kun tillatt for kjøring til virksomhet eller adresse': {'motor_vehicle': 'destination'},
-			'Forbudt for alle kjøretøy': {'motor_vehicle': 'no'},
-			'Forbudt for syklende': {'bicycle': 'no'}
+			'Motortrafikk kun tillatt for varetransport': {'motor_vehicle': 'delivery'},
+			'Motortrafikk kun tillatt for varetransport og kjøring til eiendommer': {'motor_vehicle': 'destination'},
+			'Utgår_Sykling mot kjøreretningen tillatt': {'oneway:bicycle': 'no'}
 		}
 		if "Trafikkreguleringer" in properties:
 			if properties['Trafikkreguleringer'].strip() in restrictions:
@@ -815,31 +815,43 @@ def tag_object (object_id, properties, tags):
 
 	elif object_id in ["607", "23"]:  # Barrier
 		barriers = {
+			'Heve-/senkebom': 'lift_gate',
+			'Utgår_Heve-/senkebom, ensidig': 'lift_gate',
+			'Utgår_Heve-/senkebom, tosidig': 'lift_gate',
+			'Svingbom': 'swing_gate',
+			'Utgår_Svingbom, enkel': 'swing_gate',
+			'Utgår_Svingbom, dobbel': 'swing_gate',
 			'Stolpe/pullert/kjegle': 'bollard',
 			'Rørgelender': 'cycle_barrier',
 			'Steinblokk': 'block',
 			'Betongblokk': 'jersey_barrier',
 			'Bussluse': 'bus_trap',
-			'Låst bom': 'lift_gate',
 			'Annen type vegbom/sperring': 'gate',
+			'Låst bom': 'yes',
 #			'Utgår_Trafikkavviser': 'bollard',
 #			'Bilsperre': 'gate',
-			'Svingbom': 'swing_gate',
-			'Heve-/senkebom': 'lift_gate'
 		}
-		if properties['Type'] in barriers:
-			tags['barrier'] = barriers[ properties['Type'] ]
-		else:
-			if "Type" in properties:
-				message ("  *** Unknown barrier type: %s\n" % properties['Type'])
-			tags['barrier'] = "yes"
+		if (properties['Bruksområde'] == "Gang-/sykkelveg, sluse"
+				and (properties['Type'] == "Annen type vegbom/sperring" or "Type" not in properties)):
+			tags['barrier'] = "swing_gate"
+		elif properties['Bruksområde'] not in ["Tunnel", "Bomstasjon", "Ferjekai", "Jernbane"]:
+			if properties['Type'] in barriers:
+				tags['barrier'] = barriers[ properties['Type'] ]
+			else:
+				if "Type" in properties:
+					message ("  *** Unknown barrier type: %s\n" % properties['Type'])
+				tags['barrier'] = "yes"
+			if properties['Bruksområde'] == "Høyfjellsovergang":
+				tags['access'] = "yes"
+				if "Stedsnavn" in properties:
+					tags['name'] = properties['Stedsnavn']
 
 	elif object_id == "174":  # Pedestrian crossing
 		tags['highway'] = "crossing"		
 		if properties['Trafikklys'] == "Ja":
-			tags['crossing'] = "controlled"  # crossing = controlled / traffic_signals ?
+			tags['crossing'] = "traffic_signals"
 		elif properties['Markering av striper'] == "Malte striper":
-			tags['crossing'] = "uncontrolled"  # crossing = marked / uncontrolled ?
+			tags['crossing'] = "uncontrolled"
 		elif properties['Markering av striper'] == "Ikke striper":
 			tags['crossing'] = "unmarked"
 		if properties ["Trafikkøy"] == "Ja":
@@ -848,21 +860,21 @@ def tag_object (object_id, properties, tags):
 	elif object_id == "100":  # Railway crossing
 		if "I plan" in properties['Type']:
 			tags['railway'] = "level_crossing"
-			if "bom" in properties['Type'] or "grind" in properties['Type']:
-				tags['crossing:barrier'] = "yes"
-			if "lys" in properties['Type']:
-				tags['crossing:light'] = "yes"  # crossing = traffic_light ?
-			if "uten sikring" in properties['Type']:
+			if "uten lysregulering og bommer" in properties['Type']:
 				tags['crossing'] = "uncontrolled"
+			else:
+				if "uten bommer" not in properties['Type'] or "grind" in properties['Type']:
+					tags['crossing:barrier'] = "yes"
+				if "lysregulert" in properties['Type']:
+					tags['crossing:light'] = "yes"  # crossing = traffic_light ?
+
 
 	elif object_id == "89":  # Traffic signal
-		if properties['Bruksområde'] in ["Vegkryss", "Skyttelsignalanlegg"]:
+		if properties['Bruksområde'] == "Vegkryss":  # ,"Skyttelsignalanlegg"
 			tags['highway'] = "traffic_signals"
 		elif properties['Bruksområde'] == "Gangfelt":
 			tags['highway'] = "crossing"
-			tags['crossing'] = "traffic_signals"
-		elif "Navn" in properties:
-			tags['highway'] = "traffic_signals"			
+			tags['crossing'] = "traffic_signals"		
 
 	elif object_id == "241":  # Surface
 		if "asfalt" not in properties['Massetype'].lower():
@@ -1255,8 +1267,8 @@ def update_segments_line (parent_sequence_id, tag_start, tag_end, direction, new
 					segment['extras'].update(new_extras)
 
 	else:
-		if direction and "maxspeed" not in new_tags and "surface" not in new_tags and "maxheight" not in new_tags:
-			message ("  *** Tag with direction %s: %s\n" % (direction, str(new_tags)))
+#		if direction and "maxspeed" not in new_tags and "surface" not in new_tags and "maxheight" not in new_tags:
+#			message ("  *** Tag with direction %s: %s\n" % (direction, str(new_tags)))
 		for segment_id in parents[parent_sequence_id][:]:
 			segment = segments[ segment_id ]
 
@@ -1577,13 +1589,17 @@ def get_road_object (object_id, **kwargs):
 
 	message("Merging object type #%s %s..." % (object_id, object_types[object_id]))
 
-	object_url = server + "vegobjekter/" + object_id + "?inkluder=metadata,egenskaper,lokasjon&alle_versjoner=false&srid=wgs84&kommune=" + municipality_id
-	if "property" in kwargs:
-		object_url += "&egenskap=" + kwargs['property']
-	if len(municipality_id) == 2:
-		object_url = object_url.replace("kommune=", "fylke=")
-		if municipality_id == "00":
-			object_url = object_url.replace("fylke=00", "fylke=" + ",".join(counties))
+	object_url = server + "vegobjekter/" + object_id + "?inkluder=metadata,egenskaper,lokasjon&alle_versjoner=false&srid=wgs84"
+	if municipality:
+		object_url += "&kommune=" + municipality_id
+		if "property" in kwargs:
+			object_url += "&egenskap=" + kwargs['property']
+		if len(municipality_id) == 2:
+			object_url = object_url.replace("kommune=", "fylke=")
+			if municipality_id == "00":
+				object_url = object_url.replace("fylke=00", "fylke=" + ",".join(counties))
+	elif url_bbox:
+		object_url += "&" + url_bbox
 
 	returned = 1
 	total_returned = 0
@@ -1983,6 +1999,9 @@ def process_road_object (road_object):
 
 			update_tags(new_segment, tags, "")
 			new_segment['extras'].update(extras)
+
+#			if "metadata" in road_object:
+#				new_segment['tags']['DATO_START'] = road_object['metadata']['startdato'][:10]
 
 			segments[segment_id] = new_segment
 			if geometry_type == "line":
@@ -2681,7 +2700,7 @@ def main_run(url, municipality):
 
 	if debug:
 		message("Query:          %s\n" % url)
-	message("Ouput filename: %s\n\n" % output_filename)
+	message("Output filename: %s\n\n" % output_filename)
 
 	# Init
 
@@ -2712,7 +2731,8 @@ def main_run(url, municipality):
 		get_road_object ("100")  # Railway crossing
 		get_road_object ("89")   # Traffic signal
 		get_road_object ("22")   # Cattle grid
-		get_road_object ("607")  # Barrier
+		get_road_object ("607")  # Barrier, motor access blocked
+#		get_road_object ("23")   # Barrier
 		get_road_object ("47")   # Passing place
 		get_road_object ("64")   # Ferry terminal
 		get_road_object ("37")   # Junction
@@ -2811,28 +2831,38 @@ if __name__ == '__main__':
 
 	url = ""
 	municipality = ""
+	url_bbox = ""
 	start_municipality = ""
 	object_type = ""
 
 	if len(sys.argv) > 2:
-		if (sys.argv[1] == "-vegnett") and len(sys.argv) >= 3:
+		if sys.argv[1] == "-vegnett" and len(sys.argv) >= 3:
 			municipality = get_municipality(sys.argv[2])
 			url = server + "vegnett/veglenkesekvenser/segmentert?srid=wgs84" # &kommune=" + municipality
 			if municipality == "00" and len(sys.argv) > 3 and sys.argv[3].isdigit():
 				start_municipality = sys.argv[3]
 
-		elif (sys.argv[1] == "-vegref") and (len(sys.argv) >= 3):
+		elif sys.argv[1] == "-vegref" and len(sys.argv) >= 3:
 			url = server + "vegnett/veglenkesekvenser/segmentert?srid=wgs84&vegsystemreferanse=" + sys.argv[2]
 			include_objects = False
 
-		elif (sys.argv[1] == "-vegobjekt") and (len(sys.argv) >= 3) and sys.argv[2].isdigit():
+		elif sys.argv[1] == "-vegobjekt" and len(sys.argv) >= 3 and sys.argv[2].isdigit():
 			object_type = sys.argv[2]
 			url = server + "vegobjekter/" + sys.argv[2] + "?inkluder=metadata,egenskaper,geometri,lokasjon,vegsegmenter&alle_versjoner=false&srid=wgs84"
 			if len(sys.argv) >= 4 and sys.argv[3][0] != "-":
 				municipality = get_municipality(sys.argv[3])
 
-		elif (sys.argv[1] == "-vegurl") and ("vegvesen.no" in sys.argv[2]):
-			url = sys.argv[2] + "&srid=wgs84"
+		elif sys.argv[1] == "-vegurl" and "atlas.vegvesen.no" in sys.argv[2] and "?" in sys.argv[2]:
+			url = sys.argv[2]
+			if "srid=vgs84" not in url and "srid=4326" not in url:
+				url += "&srid=wgs84"
+			if "kartutsnitt" in url:
+				url_split = url.split("?")[1].split("&")
+				for paramter in url_split:
+					if "kartutsnitt" in paramter:
+						url_bbox = paramter
+						break
+			message ("Vegkart.no URL: %s\n\n" % url)
 
 		if "-segmentert" in sys.argv or "-segment" in sys.argv:
 			longer_ways = False
@@ -2872,7 +2902,7 @@ if __name__ == '__main__':
 		message('  nvdb2osm -vegref <reference>  -->  Road network for road reference code (e.g. "0400Ea6")\n')		
 		message('  nvdb2osm -vegobjekt <object>  -->  Road object number (2-3 digits) for entire country\n')
 		message('  nvdb2osm -vegobjekt <object> [municipality]  -->  Road object number (2-3 digits) for municipality number (4 digits) or name\n')
-		message('  nvdb2osm -url "<api url string>"  -->  Any api generated from vegkart.no (UTM bounding box not supported, wgs84 appended)\n\n')
+		message('  nvdb2osm -vegurl "<api url string>"  -->  Any api generated from vegkart.no (but only WGS84/4326 bounding box supported)\n\n')
 		sys.exit()
 
 	# Init
@@ -2903,4 +2933,4 @@ if __name__ == '__main__':
 		main_run(url, municipality)
 
 	message ("\nDone\n\n")
-	
+
