@@ -96,6 +96,9 @@ Optional arguments:
 
 ### Changelog
 
+* 1.6:
+  - Support for bounding box in "-vegurl" also for road network (only WGS84).
+  - Minor tagging adjustments (barrier, traffic lights, access restrictions).
 * 1.5:
   - Support NVDB data catalogue 2.34.
   - Make surface=asphalt default for motorway, trunk, primary and secondary roads + cycleways.
