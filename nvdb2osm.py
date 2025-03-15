@@ -22,7 +22,7 @@ import time
 from xml.etree import ElementTree as ET
 
 
-version = "1.6.0"
+version = "1.6.1"
 
 longer_ways = True      # True: Concatenate segments with identical tags into longer ways, within sequence
 debug = False           # True: Include detailed information tags for debugging
@@ -520,22 +520,24 @@ def tag_highway (segment, lanes, tags, extras):
 			tags[tag_key] = "unclassified"
 
 		else:
-			if (ref['vegkategori'] == "F" or ref['vegkategori'] == "K" and municipality_id == "0301") and ref['nummer'] < 1000:  # After reform
+			if (ref['vegkategori'] == "F" or ref['vegkategori'] == "K" and municipality_id == "0301") and "nummer" in ref and ref['nummer'] < 1000:  # After reform
 				tags[tag_key] = "primary"
-				tags['ref'] = get_ref("F", ref['nummer'])
+				if "nummer" in ref:
+					tags['ref'] = get_ref("F", ref['nummer'])
 			else:
 				tags[tag_key] = road_category[ ref['vegkategori'] ]['tag']
-				if ref['vegkategori'] in ["E", "R", "F"]:
+				if ref['vegkategori'] in ["E", "R", "F"] and "nummer" in ref:
 					tags['ref'] = get_ref(ref['vegkategori'], ref['nummer'])
 
 			# Add Ring ref in Oslo/Bærum
-			if ref['nummer'] == 162 and ref['vegkategori'] == "R":
-				tags['ref'] += ";Ring 1"
-			elif ref['nummer'] == 161 and ref['vegkategori'] == "K":
-				tags['ref'] = "161;Ring 2"
-			elif (ref['nummer'] == 150 and ref['vegkategori'] == "R"
-					or ref['nummer'] == 6 and "gate" in segment and segment['gate']['navn'] in ["Hjalmar Brantings vei", "Adolf Hedins vei"]):
-				tags['ref'] += ";Ring 3"
+			if "nummer" in ref:
+				if ref['nummer'] == 162 and ref['vegkategori'] == "R":
+					tags['ref'] += ";Ring 1"
+				elif ref['nummer'] == 161 and ref['vegkategori'] == "K":
+					tags['ref'] = "161;Ring 2"
+				elif (ref['nummer'] == 150 and ['vegkategori'] == "R"
+						or ref['nummer'] == 6 and "gate" in segment and segment['gate']['navn'] in ["Hjalmar Brantings vei", "Adolf Hedins vei"]):
+					tags['ref'] += ";Ring 3"
 
 			if tags[tag_key] in ["trunk", "primary", "secondary"]:  # ref['vegkategori'] in ["E", "R", "F"]:
 				if segment['typeVeg'] == "Rampe" or segment['detaljnivå'] == "Kjørefelt" and lanes and "H" in lanes[0]:
@@ -566,11 +568,12 @@ def tag_highway (segment, lanes, tags, extras):
 	elif segment['typeVeg'] in ["Bilferje", "Passasjerferje"]:  # Ferry
 		tags[tag_key] = "ferry"
 		if ref:
-			tags['ref'] = get_ref(ref['vegkategori'], ref['nummer'])
-			if ref['vegkategori'] == "F" and ref['nummer'] < 1000:
+			if ref['vegkategori'] == "F" and "nummer" in ref and ref['nummer'] < 1000:
 				tags['ferry'] = "primary"
 			else:
 				tags['ferry'] = road_category[ ref['vegkategori'] ]['tag'].replace("residential", "unclassified").replace("service", "unclassified")
+			if "nummer" in ref:
+				tags['ref'] = get_ref(ref['vegkategori'], ref['nummer'])
 		else:
 			tags['ferry'] = "unclassified"
 
@@ -678,7 +681,8 @@ def tag_highway (segment, lanes, tags, extras):
 
 		if ref:
 			ref = segment['vegsystemreferanse']
-			extras["VEGNUMMER"] = str(ref['vegsystem']['nummer'])
+			if "nummer" in ref['vegsystem']:
+				extras["VEGNUMMER"] = str(ref['vegsystem']['nummer'])
 			extras["VEGREFERANSE"] = ref['kortform']
 			extras["FASE"] = "#" + ref['vegsystem']['fase'] + " " + road_status[ ref['vegsystem']['fase'] ]
 			extras["KATEGORI"] = "#" + ref['vegsystem']['vegkategori'] + " " + road_category[ ref['vegsystem']['vegkategori'] ]['name']
@@ -715,6 +719,8 @@ def tag_object (object_id, properties, tags):
 			tags['secondary'] = "yes"  # Dummy to flag secondary highway class for Oslo
 		elif properties['Vegklasse'] < 6:  # Only class 4 and 5 ?
 			tags['tertiary'] = "yes"  # Dummy to flag new highway class below secondary level
+		if properties['Vegklasse'] == 9:
+			tags['motor_vehicle'] = "destination"
 
 	elif object_id == "105":  # Maxspeed
 		if "Fartsgrense" in properties: 
@@ -785,6 +791,7 @@ def tag_object (object_id, properties, tags):
 			'Forbudt for motortrafikk unntatt spesiell motorvogntype': {'motor_vehicle': 'permissive'},
 			'Forbudt for motortrafikk unntatt taxi': {'motor_vehicle': 'no', 'taxi': 'yes'},
 			'Forbudt for motortrafikk unntatt varetransport': {'motor_vehicle': 'delivery'},
+			'Forbudt for liten elektrisk motorvogn': {},
 			'Forbudt for syklende': {'bicycle': 'no'},
 			'Forbudt for traktor': {'agricultural': 'no'},
 			'Utgår_Gjennomkjøring forbudt': {'motor_vehicle': 'destination'},
@@ -799,15 +806,40 @@ def tag_object (object_id, properties, tags):
 		if "Trafikkreguleringer" in properties:
 			if properties['Trafikkreguleringer'].strip() in restrictions:
 				tags.update(restrictions[ properties['Trafikkreguleringer'].strip() ])
+				if "Merknad" in properties and properties['Merknad']:
+					tags['access:note'] = properties['Trafikkreguleringer'].replace("Utgår_", "") + " - " + properties['Merknad']
 			else:
 				message ("  *** Unknown access restriction: %s\n" % properties['Trafikkreguleringer'])
 
 	elif object_id == "103":  # Speed bump
-		if properties['Type'] == "Fartshump":
-			tags['traffic_calming'] = "table"  # Mostly long/wide humps
+		traffic_calmings = {
+			'Fartshump': 'table',
+			'Fartsputer': 'cushion',
+			'Trafikkøy': 'island',
+			'Innsnevring': 'choker',
+			'Sideforskyvning': 'chicane',
+			'Innsnevring og sideforskyvning': 'chicane',
+			'Rumlefelt': 'rumble_strip',
+			'Innsnevring i kryss': 'choker',
+			'Opphøyd kryssområde': 'table',
+			'Utgår_Fartsdump': 'table',
+			'Utgår_Busshump': 'cushion'
+		}
+		if "Type" in properties:
+			if properties['Type'] in traffic_calmings:
+				tags['traffic_calming'] = traffic_calmings[ properties['Type'] ]
+			else:
+				message ("  *** Unknown traffic calming: %s\n" % traffic_calmings['Type'])
 
 	elif object_id == "22":  # Cattle grid
 		tags['barrier'] = "cattle_grid"			
+
+	elif object_id == "40":  # Turning point
+		if properties['Utforming'] == "Sirkulær m trafikkøy":
+			tags['highway'] = "turning_loop"
+		else:
+			tags['highway'] = "turning_circle"
+
 
 	elif object_id == "47":  # Passing place
 		if properties['Bruksområde'] == "Møteplass":
@@ -1821,7 +1853,7 @@ def process_road_network (segment):
 			else:
 				extras['STED_SEGMENT'] = "%s (%.2fm)" % (segment['kortform'], segment['lengde'])
 
-		if debug or date_filter:
+		if debug:
 			extras['ID'] = segment_id
 			extras['DATO_START'] = segment['metadata']['startdato'][:10]
 			if "sluttdato" in segment['metadata']:
@@ -2560,7 +2592,7 @@ def get_data(url, output_filename):
 		file = open(file_path)
 		last_history = set()
 		for ref in json.load(file):
-			last_history.add(ref.rpartition("-")[0])
+			last_history.add(ref.partition("-")[0])
 		file.close()
 		new_history = []
 
@@ -2595,7 +2627,7 @@ def get_data(url, output_filename):
 					new_history.append(record['referanse'])
 				if "vegobjekt" in url:
 					process_road_object(record)
-				elif "vegnett" in url and (not date_filter or record['referanse'].rpartition("-")[0] not in last_history):
+				elif "vegnett" in url and (not date_filter or record['referanse'].partition("-")[0] not in last_history):
 #						record['metadata']['startdato'][:len(date_filter)] == date_filter and \
 #						record['geometri']['datafangstdato'] > str(int(record['metadata']['startdato'][:4]) - years_back) + record['metadata']['startdato'][4:] and \
 #						record['referanse'] not in last_history):
@@ -2669,12 +2701,12 @@ def main_run(url, municipality):
 
 	if municipality:
 		message ("Municipality:   #%s %s\n" % (municipality, municipalities[municipality]))
-		if municipality == "00":
-			url += "&fylke=" + ",".join(counties) # All counties
-		elif len(municipality) == 2:
-			url += "&fylke=" + municipality
-		else:
-			url += "&kommune=" + municipality
+		if municipality != "00":
+#			url += "&fylke=" + ",".join(counties) # All counties
+			if len(municipality) == 2:
+				url += "&fylke=" + municipality
+			else:
+				url += "&kommune=" + municipality
 
 		if not object_type:
 			output_filename += "_" + municipality + "_" + municipalities[municipality].replace(" ", "_")
@@ -2733,6 +2765,7 @@ def main_run(url, municipality):
 		get_road_object ("22")   # Cattle grid
 		get_road_object ("607")  # Barrier, motor access blocked
 #		get_road_object ("23")   # Barrier
+#		get_road_object ("40")   # Turning point
 		get_road_object ("47")   # Passing place
 		get_road_object ("64")   # Ferry terminal
 		get_road_object ("37")   # Junction
@@ -2749,6 +2782,7 @@ def main_run(url, municipality):
 		get_road_object ("241")  # Surface
 		get_road_object ("821")  # Functional road class
 		get_road_object ("856")  # Access restrictions
+#		get_road_object ("977")  # Driving direction (Sykling mot kjøreretning tillatt)
 		get_road_object ("107")  # Weather restrictions
 		get_road_object ("591")  # Maxheight
 		get_road_object ("904")  # Maxweight, maxlength
@@ -2933,4 +2967,3 @@ if __name__ == '__main__':
 		main_run(url, municipality)
 
 	message ("\nDone\n\n")
-
