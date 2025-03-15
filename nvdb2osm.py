@@ -771,7 +771,7 @@ def tag_object (object_id, properties, tags):
 
 	elif object_id == "856":  # Access restriction
 		restrictions = {
-			'Forbudt for alle kjøretøy': {'motor_vehicle': 'no'},
+			'Forbudt for alle kjøretøy': {'motor_vehicle': 'no', 'bicycle': 'no'},
 			'Forbudt for gående': {'foot': 'no'},
 			'Forbudt for gående og syklende': {'foot': 'no', 'bicycle': 'no'},
 			'Forbudt for lastebil og trekkbil': {'hgv': 'no'},
