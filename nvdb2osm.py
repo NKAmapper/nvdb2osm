@@ -605,6 +605,7 @@ def tag_highway (segment, lanes, tags, extras):
 		tags['surface'] = "asphalt"
 		if len(lanes) == 2 and lanes[0] == "1S" and lanes[1] == "2S":
 			tags['lanes'] = "2"
+			tags['lane_markings'] = "yes"
 
 	elif segment['typeVeg'] == "Gangveg":  # Footway
 		tags[tag_key] = "footway"
