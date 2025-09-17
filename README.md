@@ -3,7 +3,7 @@ Converts NVDB highway data to OSM file.
 
 Supports v4 of NVDB (2025 onward).
 
-NVDB conversion for Sweden is [here](https://github.com/NKAmapper/nvdb2osm/blob/master/README_SWEDEN.md). 
+NVDB conversion for Sweden is [here](https://github.com/NKAmapper/nvdb2osm/blob/master/README_SWEDEN.md) (currently not maintained). 
 
 ### Usage
 1. **nvdb2osm -vegnett <"kommune">**
@@ -18,18 +18,18 @@ NVDB conversion for Sweden is [here](https://github.com/NKAmapper/nvdb2osm/blob/
 3. **nvdb2osm -vegref <"vegreferanse">**
    - Produces OSM file with road network for given road reference code.
    - Example: `nvdb2osm -vegref RA3` for Rv3 under construction (A).
-   - The reference code is found by clicking on a road in [vegkart.no v3](http://vegkart.no).
+   - The reference code is found by clicking on a road in [vegkart.no](http://vegkart.atlas.vegvesen.no).
 
 4. **nvdb2osm -vegurl <"api url">**
-   - Produces OSM file defined by given NVDB API URL from [vegkart.no v3](http://vegkart.no) or
-   any other permitted API URL as described in the [NVDB API documentation](https://nvdbapiles-v3.atlas.vegvesen.no/dokumentasjon/).
+   - Produces OSM file defined by given NVDB API URL from [vegkart.no v3](http://vegkart.atlas.vegvesen.no) or
+   any other permitted API URL as described in the [NVDB API documentation](https://nvdbapiles.atlas.vegvesen.no).
    - `&srid=wgs84` automatically added to the API URL string.
-   - Bounding box only supported for WGS84 coordinates, not UTM from [vegkart.no v3](http://vegkart.no) (you will need to remove it or convert to WGS84).
+   - Bounding box only supported for WGS84 coordinates, not UTM from [vegkart.no](http://vegkart.atlas.vegvesen.no) (you will need to remove it or convert to WGS84).
    - Please make sure that `inkluder=lokasjon,egenskaper,metadata,geometri,vegsegmenter` is included in the API URL string.
    - Example 1: `nvdb2osm -vegurl "https://nvdbapiles-v3.atlas.vegvesen.no/vegobjekter/532?segmentering=true&inkluder=lokasjon,egenskaper,metadata,geometri,vegsegmenter&egenskap=4567=7041"` for all construction road objects in Norway (NB: Less detailed than a road network).
    - Example 2: Swap `7041` with `12160` in example 1 to get cycleways under construction.
    - The API URL is found by following this procedure:
-     - Searching for a feature in [vegkart.no v3](http://vegkart.no) (see vegkart [tutorial](https://www.vegdata.no/vegkart/brukerveiledning/) )
+     - Searching for a feature in [vegkart.no](http://vegkart.atlas.vegvesen.no) (see vegkart [tutorial](https://www.nvdb.no/hent-og-se-data/vegkart/grunnleggende-brukerveiledning/) )
      - Click *"xx vegobjekter"*.
      - Copy the link behind *"API" below the list*.
      - Remove the bounding box in the copied link if any (or convert it to WGS84 coordinates).
@@ -92,7 +92,7 @@ Optional arguments:
 * NVDB includes geometry for turn lanes. In OSM, however, turn lanes should be tagged as turn:lanes instead of as separate ways. The generated OSM files includes these extra ways, but without a highway tag, so that they may be manually conflated in JOSM. Some of these ways should be kept as separate ways in OSM whenever they are physically separated from the main road, typically for lanes turning to the right.
 * The generated ways currently are sometimes self-intersecting. Run *simplify way* with a factor of 0.2 in JOSM to fix it. 
 * Road object ways currently have duplicate nodes at some intersections. Duplicates may be discovered and fixed automatically with the JOSM validator.
-* NVDB contains mistakes. You may report mistakes at [Fiksvegdata](https://fiksvegdata.opentns.org/).
+* NVDB contains mistakes. You may report mistakes at [Fiksvegdata](https://fiksvegdata.atlas.vegvesen.no).
 
 ### Changelog
 
@@ -140,12 +140,12 @@ Optional arguments:
 
 ### References
 
-* [vegkart.no v3](http://vegkart.atlas.vegvesen.no) - Statens Vegvesen: vegkart.no.
+* [vegkart.no](http://vegkart.atlas.vegvesen.no) - Statens Vegvesen: vegkart.no.
 * [NVDB data catalogue](https://datakatalogen.atlas.vegvesen.no) - All road objects by code and name.
 * [NVDB api documentation](https://nvdbapiles.atlas.vegvesen.no/) - Description of API parameters.
-* [Håndbok V830](https://www.vegvesen.no/_attachment/61505) - Statens Vegvesen: Nasjonalt vegreferansesystem.
-* [Veileder for ajourføring av veg](https://kartverket.no/globalassets/geodataarbeid/forvaltning-drift-og-vedlikehold/veileder_veitema_del1.pdf) - Kartverket editing guidelines.
-* [Fiksvegdata](https://fiksvegdata.opentns.org/) - For reporting mistakes in NVDB.
+* [Håndbok V830](https://www.vegvesen.no/globalassets/fag/handboker/hb-v830-nasjonalt-vegreferansesystem.pdf) - Statens Vegvesen: Nasjonalt vegreferansesystem.
+* [Veileder for ajourføring av vegtema](https://www.kartverket.no/geodataarbeid/forvaltning-drift-og-vedlikehold/vegtema) - Kartverket editing guidelines.
+* [Fiksvegdata](https://fiksvegdata.atlas.vegvesen.no) - For reporting mistakes in NVDB.
 * [highway_merge.py](https://github.com/osmno/highway_merge) - Python tool for merging NVDB files with existing highways in OSM.
 * [Road import plan](https://wiki.openstreetmap.org/wiki/Import/Catalogue/Road_import_(Norway)) - OpenStreetMap import wiki.
 * [Road import progress](https://wiki.openstreetmap.org/wiki/Import/Catalogue/Road_import_(Norway)/Progress) - OpenStreetMap progress page for NVDB/Elveg import.
