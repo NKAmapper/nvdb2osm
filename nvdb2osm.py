@@ -22,7 +22,7 @@ import time
 from xml.etree import ElementTree as ET
 
 
-version = "1.6.1"
+version = "1.6.2"
 
 longer_ways = True      # True: Concatenate segments with identical tags into longer ways, within sequence
 debug = False           # True: Include detailed information tags for debugging
@@ -777,7 +777,7 @@ def tag_object (object_id, properties, tags):
 
 	elif object_id == "856":  # Access restriction
 		restrictions = {
-			'Forbudt for alle kjøretøy': {'motor_vehicle': 'no', 'bicycle': 'no'},
+			'Forbudt for alle kjøretøy': {'vehicle': 'no', 'bicycle': 'no'},
 			'Forbudt for gående': {'foot': 'no'},
 			'Forbudt for gående og syklende': {'foot': 'no', 'bicycle': 'no'},
 			'Forbudt for lastebil og trekkbil': {'hgv': 'no'},
@@ -815,7 +815,6 @@ def tag_object (object_id, properties, tags):
 		traffic_calmings = {
 			'Fartshump': 'table',
 			'Fartsputer': 'cushion',
-			'Trafikkøy': 'island',
 			'Innsnevring': 'choker',
 			'Sideforskyvning': 'chicane',
 			'Innsnevring og sideforskyvning': 'chicane',
@@ -823,7 +822,8 @@ def tag_object (object_id, properties, tags):
 			'Innsnevring i kryss': 'choker',
 			'Opphøyd kryssområde': 'table',
 			'Utgår_Fartsdump': 'table',
-			'Utgår_Busshump': 'cushion'
+			'Utgår_Busshump': 'cushion',
+			'Utgår_Trafikkøy': 'island'
 		}
 		if "Type" in properties:
 			if properties['Type'] in traffic_calmings:
