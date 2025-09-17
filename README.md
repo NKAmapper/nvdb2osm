@@ -21,7 +21,7 @@ NVDB conversion for Sweden is [here](https://github.com/NKAmapper/nvdb2osm/blob/
    - The reference code is found by clicking on a road in [vegkart.no](http://vegkart.atlas.vegvesen.no).
 
 4. **nvdb2osm -vegurl <"api url">**
-   - Produces OSM file defined by given NVDB API URL from [vegkart.no v3](http://vegkart.atlas.vegvesen.no) or
+   - Produces OSM file defined by given NVDB API URL from [vegkart.no](http://vegkart.atlas.vegvesen.no) or
    any other permitted API URL as described in the [NVDB API documentation](https://nvdbapiles.atlas.vegvesen.no).
    - `&srid=wgs84` automatically added to the API URL string.
    - Bounding box only supported for WGS84 coordinates, not UTM from [vegkart.no](http://vegkart.atlas.vegvesen.no) (you will need to remove it or convert to WGS84).
