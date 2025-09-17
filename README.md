@@ -1,7 +1,7 @@
 # nvdb2osm
 Converts NVDB highway data to OSM file.
 
-To replace [elveg2osm](https://github.com/gomyhr/elveg2osm). Supports v3 of NVDB (2020 onward) and more features/tags.
+Supports v4 of NVDB (2025 onward).
 
 NVDB conversion for Sweden is [here](https://github.com/NKAmapper/nvdb2osm/blob/master/README_SWEDEN.md). 
 
@@ -82,7 +82,7 @@ Optional arguments:
   - Cattle grids.
   - Passing places.
   - Stop signs (few cases).
-* Turn restrictions are supported (relations).
+* Turn restrictions and thoroughfare restrictions are supported (relations).
 
 ### Current limitations
 
@@ -92,10 +92,17 @@ Optional arguments:
 * NVDB includes geometry for turn lanes. In OSM, however, turn lanes should be tagged as turn:lanes instead of as separate ways. The generated OSM files includes these extra ways, but without a highway tag, so that they may be manually conflated in JOSM. Some of these ways should be kept as separate ways in OSM whenever they are physically separated from the main road, typically for lanes turning to the right.
 * The generated ways currently are sometimes self-intersecting. Run *simplify way* with a factor of 0.2 in JOSM to fix it. 
 * Road object ways currently have duplicate nodes at some intersections. Duplicates may be discovered and fixed automatically with the JOSM validator.
-* NVDB contains mistakes. You may report mistakes at [Fiksvegdata](https://fiksvegdata.opentns.org/). Rapid response.
+* NVDB contains mistakes. You may report mistakes at [Fiksvegdata](https://fiksvegdata.opentns.org/).
 
 ### Changelog
 
+* 4.0:
+  - Migrated to api v4. Versions now starts at 4.
+  - Add support for thoroughfare restrictions ("gjennomkjøring forbudt") as relations.
+  - Add roller shutter barrier ("kuldeport" in tunnels).
+  - Add parking tagging (available as road object 43 only).
+  - Add crossing:markings=* and lit=* if data is available for pedestrian crossing.
+  - Uses traffic_calming=hump as standard (used to be table).
 * 1.6:
   - Support for bounding box in "-vegurl" also for road network (only WGS84).
   - Minor tagging adjustments (barrier, traffic lights, access restrictions).
@@ -133,9 +140,9 @@ Optional arguments:
 
 ### References
 
-* [vegkart.no v3](http://vegkart.no) - Statens Vegvesen: vegkart.no (new v3 version).
-* [NVDB data catalogue](https://labs.vegdata.no/nvdb-datakatalog/) - All road objects by code and name.
-* [NVDB api documentation](https://nvdbapiles-v3.atlas.vegvesen.no/dokumentasjon/) - Description of API parameters.
+* [vegkart.no v3](http://vegkart.atlas.vegvesen.no) - Statens Vegvesen: vegkart.no.
+* [NVDB data catalogue](https://datakatalogen.atlas.vegvesen.no) - All road objects by code and name.
+* [NVDB api documentation](https://nvdbapiles.atlas.vegvesen.no/) - Description of API parameters.
 * [Håndbok V830](https://www.vegvesen.no/_attachment/61505) - Statens Vegvesen: Nasjonalt vegreferansesystem.
 * [Veileder for ajourføring av veg](https://kartverket.no/globalassets/geodataarbeid/forvaltning-drift-og-vedlikehold/veileder_veitema_del1.pdf) - Kartverket editing guidelines.
 * [Fiksvegdata](https://fiksvegdata.opentns.org/) - For reporting mistakes in NVDB.
